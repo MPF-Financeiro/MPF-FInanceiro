@@ -1,0 +1,627 @@
+// Financeiro e RH da Samps.
+//
+// Duas regras governam este schema:
+//
+// 1. Título + baixa. Todo movimento de dinheiro é um TÍTULO (o que se espera
+//    receber ou pagar) com zero ou mais BAIXAS (o que de fato entrou ou saiu).
+//    Status nunca é coluna editável: sai do valor, das baixas e da data.
+// 2. Nada é apagado. Cancelar preenche `canceladoEm` e `motivoCancelamento`;
+//    uma baixa errada é estornada por outra baixa negativa, com motivo.
+//
+// Dinheiro é sempre Int em centavos. Toda data de dinheiro é dupla:
+// `competencia` (a que mês pertence) e a data da baixa (quando bateu na conta).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────────────────── acesso
+
+enum PapelUsuario {
+  ADMIN // sócio: vê tudo, inclusive pró-labore e salários
+  FINANCEIRO // lança e baixa, vê tudo do Financeiro
+  RH // vê e lança RH; do Financeiro vê só o que é da folha
+  LEITURA // só lê relatórios, não lança
+}
+
+model Usuario {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  nome         String
+  senhaHash    String
+  papel        PapelUsuario @default(LEITURA)
+  ativo        Boolean      @default(true)
+  ultimoAcesso DateTime?
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime     @updatedAt
+
+  baixasRegistradas Baixa[]
+  acessosADocumento AcessoDocumento[]
+  lancamentos       Titulo[]          @relation("TituloCriadoPor")
+
+  @@map("usuarios")
+}
+
+/// Quem abriu um documento médico, e quando. Exame ocupacional é dado de
+/// saúde: o painel mostra só aptidão e validade, o laudo fica atrás de um
+/// clique que deixa rastro.
+model AcessoDocumento {
+  id         String   @id @default(cuid())
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId  String
+  documento  String // chave do arquivo
+  entidade   String // "ExameOcupacional", "Rescisao", ...
+  entidadeId String
+  abertoEm   DateTime @default(now())
+
+  @@index([entidade, entidadeId])
+  @@map("acessos_documento")
+}
+
+// ─────────────────────────────────────────────── cadastros de apoio
+
+model Empresa {
+  id       String  @id @default(cuid())
+  nome     String
+  cnpj     String  @unique
+  ativa    Boolean @default(true)
+
+  contas   ContaBancaria[]
+  titulos  Titulo[]
+  clientes Cliente[]
+
+  @@map("empresas")
+}
+
+model ContaBancaria {
+  id        String  @id @default(cuid())
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+  empresaId String
+  banco     String
+  agencia   String?
+  numero    String?
+  apelido   String
+  ativa     Boolean @default(true)
+
+  baixas       Baixa[]
+  fechamentos  FechamentoMensal[]
+  movimentos   MovimentoExtrato[]
+
+  @@map("contas_bancarias")
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  empresaId String
+  nome      String
+  documento String? // CNPJ ou CPF
+  contato   String?
+  email     String?
+  telefone  String?
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+
+  contratos Contrato[]
+  titulos   Titulo[]
+  vouchers  Voucher[]
+
+  @@index([empresaId])
+  @@map("clientes")
+}
+
+model Contrato {
+  id          String    @id @default(cuid())
+  cliente     Cliente   @relation(fields: [clienteId], references: [id])
+  clienteId   String
+  numero      String
+  servico     String
+  valorTotal  Int // centavos
+  parcelas    Int       @default(1)
+  inicio      DateTime
+  fim         DateTime?
+  arquivo     String? // chave do PDF assinado
+  observacoes String?
+
+  titulos Titulo[]
+
+  @@unique([clienteId, numero])
+  @@map("contratos")
+}
+
+/// Fornecedor, prestador, órgão — a contraparte de uma conta a pagar.
+model Fornecedor {
+  id        String   @id @default(cuid())
+  nome      String
+  documento String?
+  categoria Categoria
+  ativo     Boolean  @default(true)
+
+  titulos Titulo[]
+
+  @@map("fornecedores")
+}
+
+// ────────────────────────────────────────────── o coração: título + baixa
+
+enum Direcao {
+  RECEBER
+  PAGAR
+}
+
+/// As categorias que a cliente listou, na ordem em que ela listou.
+enum Categoria {
+  FORNECEDORES
+  SALARIOS
+  VALE_ALIMENTACAO
+  VALE_TRANSPORTE
+  IMPOSTOS_ENCARGOS
+  ALUGUEL
+  SERVICOS_ASSINATURAS
+  BONIFICACOES
+  PRO_LABORE
+  VALORES_A_ACERTAR
+  VENDAS_SITE
+  SERVICOS_PRESTADOS
+  OUTROS
+}
+
+enum FormaPagamento {
+  PIX
+  CARTAO
+  BOLETO
+  TRANSFERENCIA
+  VOUCHER
+  DINHEIRO
+}
+
+/// De onde o título nasceu. Junto com `origemId` forma uma chave única: a
+/// folha reenviada atualiza o mesmo título em vez de criar um segundo, que é
+/// como nasce lançamento duplicado.
+enum Origem {
+  MANUAL
+  FOLHA
+  VENDA_SITE
+  CONTRATO
+  VOUCHER
+  BENEFICIO
+  BONIFICACAO
+  PRO_LABORE
+  ACERTO
+  EXAME
+}
+
+model Titulo {
+  id          String    @id @default(cuid())
+  empresa     Empresa   @relation(fields: [empresaId], references: [id])
+  empresaId   String
+  direcao     Direcao
+  categoria   Categoria
+  descricao   String
+  /// Centavos. Sempre positivo: a direção diz se entra ou sai.
+  valor       Int
+  /// A que mês o título pertence, independentemente de quando o dinheiro anda.
+  competencia DateTime
+  vencimento  DateTime
+
+  forma       FormaPagamento?
+  observacoes String?
+  comprovante String?
+
+  cliente      Cliente?    @relation(fields: [clienteId], references: [id])
+  clienteId    String?
+  fornecedor   Fornecedor? @relation(fields: [fornecedorId], references: [id])
+  fornecedorId String?
+  contrato     Contrato?   @relation(fields: [contratoId], references: [id])
+  contratoId   String?
+  colaborador  Colaborador? @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String?
+
+  origem   Origem  @default(MANUAL)
+  origemId String?
+
+  canceladoEm        DateTime?
+  motivoCancelamento String?
+
+  criadoPor   Usuario? @relation("TituloCriadoPor", fields: [criadoPorId], references: [id])
+  criadoPorId String?
+  criadoEm    DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  baixas       Baixa[]
+  vendaSite    VendaSite?
+  voucher      Voucher?
+
+  /// Impede o lançamento duplicado na raiz: a mesma origem só gera um título.
+  @@unique([origem, origemId])
+  @@index([empresaId, direcao, vencimento])
+  @@index([competencia])
+  @@map("titulos")
+}
+
+/// O dinheiro que de fato andou. Um título pode ter várias (recebimento
+/// parcial). Estorno é uma baixa de valor negativo, com motivo.
+model Baixa {
+  id        String   @id @default(cuid())
+  titulo    Titulo   @relation(fields: [tituloId], references: [id])
+  tituloId  String
+  /// Centavos. Negativo só em estorno.
+  valor     Int
+  data      DateTime
+  forma     FormaPagamento
+  conta     ContaBancaria? @relation(fields: [contaId], references: [id])
+  contaId   String?
+  comprovante String?
+  motivo    String? // obrigatório quando o valor é negativo
+  registradoPor   Usuario? @relation(fields: [registradoPorId], references: [id])
+  registradoPorId String?
+  criadoEm  DateTime @default(now())
+
+  movimento MovimentoExtrato?
+
+  @@index([tituloId])
+  @@index([data])
+  @@map("baixas")
+}
+
+// ─────────────────────────────────────────────────────────── vouchers
+
+enum StatusVoucher {
+  PENDENTE
+  UTILIZADO
+  RECEBIDO
+  CANCELADO
+}
+
+/// Voucher utilizado não é dinheiro recebido. Por isso o voucher tem data de
+/// utilização e data de repasse separadas, e só a baixa do título vira caixa.
+model Voucher {
+  id            String        @id @default(cuid())
+  cliente       Cliente?      @relation(fields: [clienteId], references: [id])
+  clienteId     String?
+  emissor       String // empresa ou órgão emissor
+  codigo        String
+  valor         Int
+  emissao       DateTime
+  utilizacao    DateTime?
+  repassePrevisto DateTime?
+  repasseEfetivo  DateTime?
+  status        StatusVoucher @default(PENDENTE)
+  observacoes   String?
+
+  titulo   Titulo? @relation(fields: [tituloId], references: [id])
+  tituloId String? @unique
+
+  @@unique([emissor, codigo])
+  @@map("vouchers")
+}
+
+// ───────────────────────────────────────── vendas do site do Giovanni
+
+enum MeioVenda {
+  PIX
+  CARTAO
+}
+
+model Curso {
+  id        String  @id @default(cuid())
+  nome      String
+  /// Preço de tabela em centavos.
+  preco     Int
+  ativo     Boolean @default(true)
+
+  cupons Cupom[]
+  vendas VendaSite[]
+
+  @@map("cursos")
+}
+
+model Cupom {
+  id        String    @id @default(cuid())
+  curso     Curso?    @relation(fields: [cursoId], references: [id])
+  cursoId   String?
+  codigo    String    @unique
+  /// Em pontos-base (1% = 100) ou valor fixo em centavos; só um dos dois.
+  percentBps Int?
+  valorFixo  Int?
+  validoAte  DateTime?
+
+  vendas VendaSite[]
+
+  @@map("cupons")
+}
+
+/// As taxas mudam com o tempo. Guardar a configuração com data de início faz
+/// a venda antiga continuar batendo com o que foi recebido na época.
+model ConfigTaxa {
+  id          String    @id @default(cuid())
+  vigenteDe   DateTime
+  vigenteAte  DateTime?
+  notaBps     Int       @default(1000) // 10% da NF
+  pixBps      Int       @default(100)
+  cartaoBps   Int       @default(450)
+  fixoPorVenda Int      @default(0)
+  observacao  String?
+
+  @@map("config_taxas")
+}
+
+model VendaSite {
+  id        String    @id @default(cuid())
+  data      DateTime
+  aluno     String
+  curso     Curso?    @relation(fields: [cursoId], references: [id])
+  cursoId   String?
+  /// Nome livre quando o curso ainda não está cadastrado.
+  descricao String?
+  meio      MeioVenda
+  /// Centavos, todos congelados no momento da venda.
+  bruto     Int
+  cupom     Cupom?  @relation(fields: [cupomId], references: [id])
+  cupomId   String?
+  descontoCupom Int @default(0)
+  nota      Int
+  taxa      Int
+  liquido   Int
+  parcelas  Int     @default(1)
+
+  titulo   Titulo @relation(fields: [tituloId], references: [id])
+  tituloId String @unique
+
+  repasses Repasse[]
+
+  @@index([data])
+  @@map("vendas_site")
+}
+
+/// Uma parcela de cartão esperada. A soma dos repasses é exatamente o líquido.
+model Repasse {
+  id          String    @id @default(cuid())
+  venda       VendaSite @relation(fields: [vendaId], references: [id])
+  vendaId     String
+  numero      Int
+  valor       Int
+  previsao    DateTime
+  efetivo     DateTime?
+
+  @@unique([vendaId, numero])
+  @@map("repasses")
+}
+
+// ──────────────────────────────────────────────────────────────── RH
+
+enum StatusColaborador {
+  ATIVO
+  AFASTADO
+  DESLIGADO
+}
+
+model Colaborador {
+  id         String            @id @default(cuid())
+  nome       String
+  cargo      String
+  setor      String?
+  admissao   DateTime
+  desligamento DateTime?
+  status     StatusColaborador @default(ATIVO)
+  /// Centavos.
+  salario    Int
+  /// Dados sensíveis ficam aqui e não saem em relatório nem em export.
+  cpf        String?           @unique
+  email      String?
+
+  titulos     Titulo[]
+  beneficios  BeneficioMensal[]
+  folhas      ItemFolha[]
+  ferias      Ferias[]
+  exames      ExameOcupacional[]
+  rescisao    Rescisao?
+  contracheques Contracheque[]
+  documentos  DocumentoRH[]
+  bonificacoes Bonificacao[]
+
+  @@map("colaboradores")
+}
+
+enum TipoBeneficio {
+  VALE_ALIMENTACAO
+  VALE_TRANSPORTE
+  PLANO_SAUDE
+  OUTRO
+}
+
+model BeneficioMensal {
+  id            String        @id @default(cuid())
+  colaborador   Colaborador   @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String
+  tipo          TipoBeneficio
+  competencia   DateTime
+  previsto      Int
+  pago          Int           @default(0)
+  dataPagamento DateTime?
+  forma         FormaPagamento?
+
+  @@unique([colaboradorId, tipo, competencia])
+  @@map("beneficios_mensais")
+}
+
+/// A folha é administrada no RH; cada item gera UM título no Financeiro, com
+/// origem FOLHA e origemId = id do item. Reenviar a folha atualiza o título.
+model Folha {
+  id          String    @id @default(cuid())
+  competencia DateTime  @unique
+  fechadaEm   DateTime?
+  enviadaEm   DateTime?
+
+  itens ItemFolha[]
+
+  @@map("folhas")
+}
+
+model ItemFolha {
+  id            String      @id @default(cuid())
+  folha         Folha       @relation(fields: [folhaId], references: [id])
+  folhaId       String
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String
+  salarioBruto  Int
+  bonificacoes  Int         @default(0)
+  horasExtras   Int         @default(0)
+  adiantamentos Int         @default(0)
+  inss          Int         @default(0)
+  irrf          Int         @default(0)
+  outrosDescontos Int       @default(0)
+  valeAlimentacao Int       @default(0)
+  valeTransporte  Int       @default(0)
+  liquido       Int
+
+  @@unique([folhaId, colaboradorId])
+  @@map("itens_folha")
+}
+
+/// Bonificação por conta trazida. Ou entra na folha, ou vira título próprio —
+/// `naFolha` diz qual dos dois, para não pagar duas vezes.
+model Bonificacao {
+  id            String      @id @default(cuid())
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String
+  referencia    String // cliente, conta ou venda
+  valorConta    Int
+  valor         Int
+  competencia   DateTime
+  naFolha       Boolean     @default(true)
+
+  @@map("bonificacoes")
+}
+
+model Contracheque {
+  id            String      @id @default(cuid())
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String
+  competencia   DateTime
+  arquivo       String?
+  disponibilizadoEm DateTime?
+
+  @@unique([colaboradorId, competencia])
+  @@map("contracheques")
+}
+
+enum StatusFerias {
+  PROGRAMADA
+  EM_GOZO
+  CONCLUIDA
+  CANCELADA
+}
+
+model Ferias {
+  id            String       @id @default(cuid())
+  colaborador   Colaborador  @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String
+  periodoAquisitivoInicio DateTime
+  periodoAquisitivoFim    DateTime
+  inicio        DateTime
+  fim           DateTime
+  diasVendidos  Int          @default(0)
+  abonoPecuniario Boolean    @default(false)
+  status        StatusFerias @default(PROGRAMADA)
+  observacoes   String?
+
+  @@map("ferias")
+}
+
+model Rescisao {
+  id            String      @id @default(cuid())
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String      @unique
+  motivo        String
+  aviso         String? // trabalhado, indenizado, dispensado
+  dataDesligamento DateTime
+  homologadaEm  DateTime?
+  valorTotal    Int         @default(0)
+  documento     String?
+
+  @@map("rescisoes")
+}
+
+enum TipoExame {
+  ADMISSIONAL
+  PERIODICO
+  RETORNO_AO_TRABALHO
+  MUDANCA_DE_RISCO
+  DEMISSIONAL
+}
+
+model ExameOcupacional {
+  id            String      @id @default(cuid())
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String
+  tipo          TipoExame
+  realizado     DateTime
+  proximo       DateTime?
+  clinica       String?
+  apto          Boolean     @default(true)
+  /// Documento de saúde: só abre com registro em AcessoDocumento.
+  laudo         String?
+  custo         Int         @default(0)
+
+  @@index([colaboradorId, proximo])
+  @@map("exames_ocupacionais")
+}
+
+model DocumentoRH {
+  id            String      @id @default(cuid())
+  colaborador   Colaborador @relation(fields: [colaboradorId], references: [id])
+  colaboradorId String
+  tipo          String
+  arquivo       String?
+  emitidoEm     DateTime?
+  venceEm       DateTime?
+  restrito      Boolean     @default(false)
+
+  @@index([venceEm])
+  @@map("documentos_rh")
+}
+
+// ─────────────────────────────────── banco, conciliação e fechamento
+
+model MovimentoExtrato {
+  id        String        @id @default(cuid())
+  conta     ContaBancaria @relation(fields: [contaId], references: [id])
+  contaId   String
+  data      DateTime
+  descricao String
+  /// Centavos; negativo é saída.
+  valor     Int
+  /// Identificador do banco, para não importar o mesmo movimento duas vezes.
+  fitid     String
+
+  baixa   Baixa?  @relation(fields: [baixaId], references: [id])
+  baixaId String? @unique
+
+  @@unique([contaId, fitid])
+  @@index([contaId, data])
+  @@map("movimentos_extrato")
+}
+
+/// Mês fechado trava: nenhum título ou baixa daquela competência muda mais.
+/// Para corrigir, estorna-se no mês aberto.
+model FechamentoMensal {
+  id           String        @id @default(cuid())
+  conta        ContaBancaria @relation(fields: [contaId], references: [id])
+  contaId      String
+  competencia  DateTime
+  saldoInicial Int
+  saldoFinalCalculado Int
+  saldoFinalExtrato   Int?
+  fechadoEm    DateTime?
+  observacoes  String?
+
+  @@unique([contaId, competencia])
+  @@map("fechamentos_mensais")
+}

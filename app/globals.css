@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Mesma estrutura de tokens do SampsOS. A troca é uma só: onde o SampsOS usa
+  o ciano-lente (#2DB3C8), o Financeiro usa a tinta de caneta (#1E3A6E), que
+  veio da direção Livro-caixa. Tudo o mais — escalas, raio, tipografia — é
+  igual, para que os dois sistemas se corrijam no mesmo lugar.
+*/
+
+@layer base {
+  :root {
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-display: "Plus Jakarta Sans", var(--font-sans);
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --radius: 0.625rem;
+
+    --background: 220 20% 98%;
+    --foreground: 220 45% 8%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 45% 8%;
+
+    --muted: 225 20% 96%;
+    --muted-foreground: 220 9% 42%;
+
+    --border: 220 16% 90%;
+    --input: 220 14% 85%;
+    --ring: 217 57% 27%;
+
+    /* Tinta de caneta: a cor de ação do Financeiro. */
+    --brand: 217 57% 27%; /* #1E3A6E */
+    --brand-ink: 217 60% 20%;
+    --primary: 217 57% 27%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 20% 96%;
+    --secondary-foreground: 220 45% 8%;
+
+    --accent: 218 45% 95%;
+    --accent-foreground: 217 57% 27%;
+
+    --success: 145 70% 30%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 93% 34%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    color-scheme: light;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+
+  /* Número é para comparar coluna com coluna. Nunca em fonte proporcional. */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+@layer components {
+  /*
+    Chip: o status do dia a dia, igual ao do SampsOS.
+  */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .chip::before {
+    content: "";
+    @apply size-1.5 rounded-full bg-current;
+  }
+  .chip-ok {
+    @apply bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success))];
+  }
+  .chip-warn {
+    @apply bg-[hsl(var(--warning)/0.14)] text-[hsl(var(--warning))];
+  }
+  .chip-bad {
+    @apply bg-[hsl(var(--destructive)/0.12)] text-[hsl(var(--destructive))];
+  }
+  .chip-info {
+    @apply bg-accent text-accent-foreground;
+  }
+  .chip-plain {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  /*
+    Carimbo: só para o que está fechado e não muda mais — mês fechado, folha
+    enviada, rescisão homologada. Foi o que ficou da direção Livro-caixa.
+    Legível em print preto e branco, que é como as coisas circulam no WhatsApp.
+  */
+  .carimbo {
+    @apply inline-block -rotate-2 rounded-[3px] border-2 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider;
+    border-color: hsl(var(--success));
+    color: hsl(var(--success));
+  }
+  .carimbo-neutro {
+    border-color: hsl(var(--muted-foreground));
+    color: hsl(var(--muted-foreground));
+  }
+}
