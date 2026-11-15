@@ -26,6 +26,7 @@ npm run db:push
 npm run db:seed          # dados FICTÍCIOS, iguais aos das telas aprovadas
 npm run dev              # http://localhost:3001/financeiro
 npm test
+npm run db:usuario       # cria um usuário (ver "Primeiro acesso")
 ```
 
 O seed cria `admin@sampsdigital.com` com a senha `financeiro123`. É dado de
@@ -58,6 +59,31 @@ desenvolvimento: **não rode o seed em produção.**
    acima (ex.: `https://samps-financeiro.vercel.app`). Sem essa variável o
    SampsOS não encaminha nada e segue exatamente como hoje — ou seja, o
    rewrite é opcional e reversível apagando uma variável.
+
+### Primeiro acesso, depois do deploy
+
+Com as variáveis no lugar, crie as tabelas e um usuário. Os dois comandos
+rodam da sua máquina, apontando para o banco de produção — por isso precisam
+do `DIRECT_URL` preenchido.
+
+```bash
+cd financeiro
+cp .env.example .env     # preencha DATABASE_URL e DIRECT_URL do Supabase
+npm install
+npm run db:push          # cria as tabelas
+```
+
+Depois, o seu usuário. **Não rode o seed em produção:** ele apaga as tabelas
+e cria contas com senha conhecida.
+
+```bash
+ NOME="Seu Nome" EMAIL="voce@sampsdigital.com" SENHA='sua-senha-longa' PAPEL=ADMIN npm run db:usuario
+```
+
+O espaço antes do `NOME` é de propósito: na maioria dos shells ele mantém a
+linha fora do histórico. Papéis: `ADMIN`, `FINANCEIRO`, `RH`, `LEITURA`. O
+comando pode ser repetido — rodar de novo com o mesmo e-mail troca a senha e
+o papel daquela pessoa, que é como você reseta uma senha sem mexer no banco.
 
 ### Antes de pôr dado real no Supabase
 
