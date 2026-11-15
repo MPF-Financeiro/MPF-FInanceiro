@@ -33,18 +33,40 @@ desenvolvimento: **não rode o seed em produção.**
 
 ## Publicar
 
-1. Crie um **banco próprio** no Neon. Nunca o mesmo do SampsOS: é o banco
-   separado que garante que uma migration daqui não alcance a agência.
-2. Crie um **projeto próprio** na Vercel apontando para este repositório. Se a
+1. Crie um **projeto próprio no Supabase**, só para o Financeiro. Nunca o
+   mesmo banco do SampsOS: é o banco separado que garante que uma migration
+   daqui não alcance a agência. Escolha a região mais perto (`sa-east-1`).
+2. Em **Project Settings → Database → Connection string**, copie as duas
+   URLs. Elas são diferentes de propósito, e trocá-las uma pela outra é o
+   erro mais comum aqui:
+   - `DATABASE_URL` é o **transaction pooler, porta 6543**, com
+     `?pgbouncer=true&connection_limit=1`. É a que a aplicação usa, porque na
+     Vercel cada requisição é um processo novo. Sem o `pgbouncer=true` o
+     Prisma tenta criar prepared statements, que esse modo não aceita.
+   - `DIRECT_URL` é o **session pooler, porta 5432**. Só o Prisma CLI usa, em
+     `db push` e `migrate`, que não funcionam pelo pooler de transação.
+     Prefira o host `...pooler.supabase.com` ao `db.<ref>.supabase.co`,
+     porque o direto só responde em IPv6.
+3. Crie um **projeto próprio** na Vercel apontando para este repositório. Se a
    pasta `financeiro/` ainda estiver dentro do repositório do SampsOS, use
    **Root Directory = `financeiro`** nas configurações do projeto.
-3. Variáveis do projeto do Financeiro: `DATABASE_URL`, `DIRECT_URL`,
+4. Variáveis do projeto do Financeiro na Vercel: `DATABASE_URL`, `DIRECT_URL`,
    `AUTH_SECRET`, `AUTH_TRUST_HOST=true`.
-4. No projeto do **SampsOS**, defina `FINANCEIRO_URL` com a URL do deploy
+5. `npm run db:push` (ou `prisma migrate deploy`) contra o banco novo, com o
+   `DIRECT_URL` preenchido.
+6. No projeto do **SampsOS**, defina `FINANCEIRO_URL` com a URL do deploy
    acima (ex.: `https://samps-financeiro.vercel.app`). Sem essa variável o
    SampsOS não encaminha nada e segue exatamente como hoje — ou seja, o
    rewrite é opcional e reversível apagando uma variável.
-5. `npm run db:push` (ou `prisma migrate deploy`) contra o banco novo.
+
+### Antes de pôr dado real no Supabase
+
+As tabelas aqui são criadas pelo Prisma, não pelo painel, então não recebem
+as permissões que o Supabase dá às tabelas feitas por lá. Ainda assim,
+**confira em Settings → API que a Data API não está servindo o schema
+`public`**, e nunca publique a `service_role key` em lugar nenhum: este banco
+guarda salário, CPF e laudo de exame. O acesso de quem usa o sistema é
+decidido pela aplicação, pelo papel do usuário, não por RLS do Postgres.
 
 ## Decisões que valem para qualquer tela nova
 
