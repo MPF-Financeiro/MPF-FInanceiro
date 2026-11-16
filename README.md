@@ -85,6 +85,19 @@ linha fora do histórico. Papéis: `ADMIN`, `FINANCEIRO`, `RH`, `LEITURA`. O
 comando pode ser repetido — rodar de novo com o mesmo e-mail troca a senha e
 o papel daquela pessoa, que é como você reseta uma senha sem mexer no banco.
 
+### A raiz do domínio da Vercel
+
+O app inteiro vive sob `/financeiro`, para poder ser servido no domínio do
+SampsOS. Então a raiz do domínio próprio da Vercel não é uma página: quem
+abrisse `mpffinanceiro.vercel.app` via um 404 e achava que o deploy tinha
+quebrado — a miniatura do painel da Vercel, inclusive, abre justamente a raiz.
+
+O `vercel.json` manda a raiz para `/financeiro/login`. É redirect temporário
+(307) de propósito: permanente ficaria no cache do navegador das pessoas e
+seria difícil de voltar atrás. Esse arquivo só vale para o domínio próprio
+deste deploy; quando o acesso for pelo domínio do SampsOS, a raiz é o SampsOS
+e nada disso é usado.
+
 ### Antes de pôr dado real no Supabase
 
 As tabelas aqui são criadas pelo Prisma, não pelo painel, então não recebem
