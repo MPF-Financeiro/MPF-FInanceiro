@@ -47,12 +47,19 @@ export function lerExtrato(texto: string): ResultadoExtrato {
   const erros: ResultadoExtrato["erros"] = [];
   const vistos = new Set<string>();
 
-  const cruas = texto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const cruas = texto
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   for (const [i, crua] of cruas.entries()) {
     const separador = crua.includes("\t") ? "\t" : crua.includes(";") ? ";" : ",";
     const partes = crua.split(separador).map((p) => p.trim().replace(/^"|"$/g, ""));
     if (partes.length < 3) {
-      erros.push({ linha: i + 1, texto: crua, motivo: "A linha precisa de data, descrição e valor" });
+      erros.push({
+        linha: i + 1,
+        texto: crua,
+        motivo: "A linha precisa de data, descrição e valor",
+      });
       continue;
     }
 
@@ -67,14 +74,41 @@ export function lerExtrato(texto: string): ResultadoExtrato {
     const descricao = partes[1];
     const valor = parseCentavos(partes[2]);
     if (valor === null || valor === 0) {
-      erros.push({ linha: i + 1, texto: crua, motivo: "Valor não reconhecido" });
+      erros.push({
+        linha: i + 1,
+        texto: crua,
+        motivo: "Valor não reconhecido",
+      });
       continue;
     }
 
-    const fitid = partes[3] || derivarFitid(data, descricao, valor);
-    if (vistos.has(fitid)) {
-      erros.push({ linha: i + 1, texto: crua, motivo: "Linha repetida no arquivo" });
+    const doBanco = partes[3];
+    if (doBanco) {
+      // Identificador do próprio banco repetido é repetição de verdade: o
+      // banco não dá dois identificadores iguais para dois lançamentos.
+      if (vistos.has(doBanco)) {
+        erros.push({
+          linha: i + 1,
+          texto: crua,
+          motivo: "Linha repetida no arquivo",
+        });
+        continue;
+      }
+      vistos.add(doBanco);
+      linhas.push({ data, descricao, valor, fitid: doBanco });
       continue;
+    }
+
+    // Sem identificador do banco, duas linhas idênticas podem ser dois
+    // lançamentos de verdade: dois Pix do mesmo valor no mesmo dia acontecem.
+    // Então a repetição ganha um sufixo em vez de ser descartada — descartar
+    // some com dinheiro que entrou.
+    const base = derivarFitid(data, descricao, valor);
+    let fitid = base;
+    let n = 2;
+    while (vistos.has(fitid)) {
+      fitid = `${base}-${n}`;
+      n += 1;
     }
     vistos.add(fitid);
     linhas.push({ data, descricao, valor, fitid });
@@ -84,17 +118,26 @@ export function lerExtrato(texto: string): ResultadoExtrato {
 }
 
 /**
- * Sugere a baixa que casa com o movimento: mesmo valor e data perto. Sugerir
- * é diferente de conciliar: quem confirma é a pessoa.
+ * O que a baixa faz com o saldo da conta: receber entra, pagar sai. O estorno
+ * é uma baixa negativa, então ele inverte sozinho.
  */
-export function sugerirBaixa<T extends { id: string; valor: number; data: Date }>(
+export function efeitoNoCaixa(valor: number, direcao: "RECEBER" | "PAGAR"): number {
+  return direcao === "RECEBER" ? valor : -valor;
+}
+
+/**
+ * Sugere a baixa que casa com o movimento: mesmo efeito no caixa e data perto.
+ * O sinal faz parte da comparação — uma entrada de R$ 500 no extrato não é o
+ * pagamento de R$ 500 ao fornecedor, e casar os dois estraga o fechamento.
+ * Sugerir é diferente de conciliar: quem confirma é a pessoa.
+ */
+export function sugerirBaixa<T extends { id: string; efeito: number; data: Date }>(
   movimento: { valor: number; data: Date },
   baixas: T[],
   toleranciaDias = 3
 ): T | null {
-  const alvo = Math.abs(movimento.valor);
   const candidatas = baixas
-    .filter((b) => Math.abs(b.valor) === alvo)
+    .filter((b) => b.efeito === movimento.valor)
     .map((b) => ({
       baixa: b,
       distancia: Math.abs(b.data.getTime() - movimento.data.getTime()) / (24 * 60 * 60 * 1000),

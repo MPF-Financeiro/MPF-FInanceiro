@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BotaoEnviar, Campo, Erro, Grade, Sucesso } from "@/components/financeiro/formulario";
-import { Tabela, Td, Th } from "@/components/financeiro/tabela";
+import { AcaoDaLinha, Tabela, Td, Th } from "@/components/financeiro/tabela";
 
 export type CursoLinha = { id: string; nome: string; preco: number; ativo: boolean; vendas: number };
 export type CupomLinha = {
@@ -59,13 +59,9 @@ export function Cursos({ cursos }: { cursos: CursoLinha[] }) {
                 <Td numero>{c.vendas}</Td>
                 <Td className="text-muted-foreground">{c.ativo ? "Ativo" : "Inativo"}</Td>
                 <Td>
-                  <button
-                    type="button"
-                    onClick={() => setEditando(c)}
-                    className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                  >
+                  <AcaoDaLinha oQue={`o curso ${c.nome}`} onClick={() => setEditando(c)}>
                     Editar
-                  </button>
+                  </AcaoDaLinha>
                 </Td>
               </tr>
             ))}
@@ -199,7 +195,7 @@ export function Cupons({
                 ))}
               </Select>
             </Campo>
-            <Campo rotulo="Válido até" htmlFor="validoAte" dica="Opcional.">
+            <Campo rotulo="Válido até" htmlFor="validoAte" opcional>
               <Input id="validoAte" name="validoAte" type="date" />
             </Campo>
           </Grade>
@@ -324,7 +320,7 @@ export function Taxas({
               <Campo rotulo="Taxa do cartão" htmlFor="cartao" dica="Em %.">
                 <Input id="cartao" name="cartao" required inputMode="decimal" className="num tabular-nums" />
               </Campo>
-              <Campo rotulo="Fixo por venda" htmlFor="fixoPorVenda" dica="Em reais. Opcional.">
+              <Campo rotulo="Fixo por venda" htmlFor="fixoPorVenda" opcional dica="Em reais.">
                 <Input id="fixoPorVenda" name="fixoPorVenda" inputMode="decimal" className="num tabular-nums" />
               </Campo>
             </Grade>

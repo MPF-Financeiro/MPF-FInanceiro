@@ -140,7 +140,7 @@ export function Ferias({
               <input type="checkbox" name="abonoPecuniario" className="size-4 rounded border-input" />
               Abono pecuniário
             </label>
-            <Campo rotulo="Observações" htmlFor="fer-obs" dica="Opcional.">
+            <Campo rotulo="Observações" htmlFor="fer-obs" opcional>
               <Textarea id="fer-obs" name="observacoes" />
             </Campo>
             <BotaoEnviar enviando="Salvando…">Programar férias</BotaoEnviar>
@@ -261,16 +261,16 @@ export function Exames({
               <Campo rotulo="Realizado em" htmlFor="ex-real">
                 <Input id="ex-real" name="realizado" type="date" required defaultValue={hoje} />
               </Campo>
-              <Campo rotulo="Próximo" htmlFor="ex-prox" dica="Opcional.">
+              <Campo rotulo="Próximo" htmlFor="ex-prox" opcional>
                 <Input id="ex-prox" name="proximo" type="date" />
               </Campo>
-              <Campo rotulo="Clínica" htmlFor="ex-clinica" dica="Opcional.">
+              <Campo rotulo="Clínica" htmlFor="ex-clinica" opcional>
                 <Input id="ex-clinica" name="clinica" />
               </Campo>
-              <Campo rotulo="Custo" htmlFor="ex-custo" dica="Em reais. Opcional.">
+              <Campo rotulo="Custo" htmlFor="ex-custo" opcional dica="Em reais.">
                 <Input id="ex-custo" name="custo" inputMode="decimal" className="num tabular-nums" />
               </Campo>
-              <Campo rotulo="Laudo" htmlFor="ex-laudo" dica="Link do arquivo. Opcional.">
+              <Campo rotulo="Laudo" htmlFor="ex-laudo" opcional dica="Link do arquivo.">
                 <Input id="ex-laudo" name="laudo" />
               </Campo>
             </Grade>
@@ -360,13 +360,13 @@ export function DocumentosEContracheques({
                 <Campo rotulo="Tipo" htmlFor="doc-tipo" dica="Ex.: contrato, ASO, advertência.">
                   <Input id="doc-tipo" name="tipo" required />
                 </Campo>
-                <Campo rotulo="Arquivo" htmlFor="doc-arq" dica="Link. Opcional.">
+                <Campo rotulo="Arquivo" htmlFor="doc-arq" opcional dica="Link.">
                   <Input id="doc-arq" name="arquivo" />
                 </Campo>
-                <Campo rotulo="Emitido em" htmlFor="doc-emit" dica="Opcional.">
+                <Campo rotulo="Emitido em" htmlFor="doc-emit" opcional>
                   <Input id="doc-emit" name="emitidoEm" type="date" />
                 </Campo>
-                <Campo rotulo="Vence em" htmlFor="doc-vence" dica="Opcional.">
+                <Campo rotulo="Vence em" htmlFor="doc-vence" opcional>
                   <Input id="doc-vence" name="venceEm" type="date" />
                 </Campo>
               </Grade>
@@ -424,7 +424,7 @@ export function DocumentosEContracheques({
                     defaultValue={competencia}
                   />
                 </Campo>
-                <Campo rotulo="Arquivo" htmlFor="con-arq" dica="Link do PDF. Opcional.">
+                <Campo rotulo="Arquivo" htmlFor="con-arq" opcional dica="Link do PDF.">
                   <Input id="con-arq" name="arquivo" />
                 </Campo>
               </Grade>
@@ -532,7 +532,7 @@ export function RescisaoCard({
                   className="num tabular-nums"
                 />
               </Campo>
-              <Campo rotulo="Documento" htmlFor="res-doc" dica="Link do termo. Opcional.">
+              <Campo rotulo="Documento" htmlFor="res-doc" opcional dica="Link do termo.">
                 <Input id="res-doc" name="documento" />
               </Campo>
               <div className="flex items-end pb-2">

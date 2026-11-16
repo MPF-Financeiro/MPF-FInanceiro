@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { podeAdministrar, podeLancar, sessaoAtual } from "@/lib/permissoes";
 import { competenciaDe, fimDoMes, hojeUTC, inicioDoMes, paraInputMonth } from "@/lib/mes";
 import { conferirMes } from "@/lib/acoes/banco";
-import { sugerirBaixa } from "@/lib/extrato";
+import { efeitoNoCaixa, sugerirBaixa } from "@/lib/extrato";
 import { formatBRL } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,7 @@ export default async function BancoPage({
   const opcoesBaixa = baixasDoMes.map((b) => ({
     id: b.id,
     valor: b.valor,
+    efeito: efeitoNoCaixa(b.valor, b.titulo.direcao),
     data: b.data,
     rotulo: `${String(b.data.getUTCDate()).padStart(2, "0")}/${String(b.data.getUTCMonth() + 1).padStart(2, "0")} · ${
       b.titulo.direcao === Direcao.RECEBER ? "recebido" : "pago"

@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { SemPermissao } from "@/lib/permissoes";
 import { MesFechado } from "@/lib/fechamento";
+import { JaLancado } from "@/lib/idempotencia";
 import { erroDe } from "@/lib/validacao";
 
 export type Estado = { erro: string | null; ok: string | null };
@@ -22,7 +23,7 @@ export function rota(caminho: string): string {
  */
 export function falha(e: unknown): Estado {
   if (e instanceof ZodError) return { erro: erroDe(e), ok: null };
-  if (e instanceof SemPermissao || e instanceof MesFechado) {
+  if (e instanceof SemPermissao || e instanceof MesFechado || e instanceof JaLancado) {
     return { erro: e.message, ok: null };
   }
   if (e instanceof Error && e.message.startsWith("AVISO: ")) {

@@ -10,7 +10,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ChipStatus } from "@/components/financeiro/chip";
 import { Cabecalho } from "@/components/financeiro/pagina";
-import { Tabela, Td, Th } from "@/components/financeiro/tabela";
+import { AcaoDaLinha, Tabela, Td, Th } from "@/components/financeiro/tabela";
 import { listarTitulos } from "@/lib/consultas";
 import { Direcao } from "@prisma/client";
 
@@ -112,12 +112,9 @@ export default async function BuscaPage({ searchParams }: { searchParams: { q?: 
                           <ChipStatus status={t.status} />
                         </Td>
                         <Td>
-                          <Link
-                            href={`${t.base}/${t.id}`}
-                            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                          >
+                          <AcaoDaLinha href={`${t.base}/${t.id}`} oQue={t.descricao}>
                             Abrir
-                          </Link>
+                          </AcaoDaLinha>
                         </Td>
                       </tr>
                     ))}

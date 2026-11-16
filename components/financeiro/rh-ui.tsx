@@ -16,8 +16,16 @@ import { STATUS_COLABORADOR, TIPO_BENEFICIO } from "@/lib/rotulos";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { BotaoEnviar, Campo, Erro, Grade, Sucesso } from "@/components/financeiro/formulario";
-import { Tabela, Td, Th } from "@/components/financeiro/tabela";
+import {
+  AreaDeFormulario,
+  BotaoEnviar,
+  Campo,
+  Erro,
+  Grade,
+  Sucesso,
+  TokenDoFormulario,
+} from "@/components/financeiro/formulario";
+import { AcaoDaLinha, Tabela, Td, Th } from "@/components/financeiro/tabela";
 
 type Opcao = { id: string; nome: string };
 
@@ -89,13 +97,9 @@ export function Colaboradores({
                 {podeVerRemuneracao ? <Td numero>{formatBRL(c.salario)}</Td> : null}
                 <Td className="text-muted-foreground">{STATUS_COLABORADOR[c.status]}</Td>
                 <Td>
-                  <button
-                    type="button"
-                    onClick={() => setEdit(c)}
-                    className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                  >
+                  <AcaoDaLinha oQue={`o colaborador ${c.nome}`} onClick={() => setEdit(c)}>
                     Editar
-                  </button>
+                  </AcaoDaLinha>
                 </Td>
               </tr>
             ))}
@@ -107,79 +111,89 @@ export function Colaboradores({
           </tbody>
         </Tabela>
 
-        <form action={acao} key={edit?.id ?? "novo"} className="space-y-4 border-t border-border pt-5">
-          <Erro>{estado.erro}</Erro>
-          <Sucesso>{estado.ok}</Sucesso>
-          {edit ? <input type="hidden" name="id" value={edit.id} /> : null}
-          <Grade colunas={3}>
-            <Campo rotulo="Nome" htmlFor="col-nome">
-              <Input id="col-nome" name="nome" required minLength={3} defaultValue={edit?.nome} />
-            </Campo>
-            <Campo rotulo="Cargo" htmlFor="col-cargo">
-              <Input id="col-cargo" name="cargo" required defaultValue={edit?.cargo} />
-            </Campo>
-            <Campo rotulo="Setor" htmlFor="col-setor" dica="Opcional.">
-              <Input id="col-setor" name="setor" defaultValue={edit?.setor ?? ""} />
-            </Campo>
-            <Campo rotulo="Admissão" htmlFor="col-admissao">
-              <Input
-                id="col-admissao"
-                name="admissao"
-                type="date"
-                required
-                defaultValue={
-                  edit
-                    ? `${edit.admissao.getUTCFullYear()}-${String(edit.admissao.getUTCMonth() + 1).padStart(2, "0")}-${String(edit.admissao.getUTCDate()).padStart(2, "0")}`
-                    : hoje
-                }
-              />
-            </Campo>
-            <Campo rotulo="Salário" htmlFor="col-salario" dica="Em reais.">
-              <Input
-                id="col-salario"
-                name="salario"
-                required
-                inputMode="decimal"
-                defaultValue={edit ? (edit.salario / 100).toFixed(2).replace(".", ",") : ""}
-                className="num tabular-nums"
-              />
-            </Campo>
-            <Campo rotulo="Situação" htmlFor="col-status">
-              <Select id="col-status" name="status" required defaultValue={edit?.status ?? "ATIVO"}>
-                {(Object.keys(STATUS_COLABORADOR) as StatusColaborador[]).map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_COLABORADOR[s]}
-                  </option>
-                ))}
-              </Select>
-            </Campo>
-            <Campo rotulo="CPF" htmlFor="col-cpf" dica="Opcional. Só números.">
-              <Input
-                id="col-cpf"
-                name="cpf"
-                defaultValue={edit?.cpf ?? ""}
-                className="num tabular-nums"
-              />
-            </Campo>
-            <Campo rotulo="E-mail" htmlFor="col-email" dica="Opcional.">
-              <Input id="col-email" name="email" type="email" defaultValue={edit?.email ?? ""} />
-            </Campo>
-          </Grade>
-          <div className="flex flex-wrap items-center gap-3">
-            <BotaoEnviar enviando="Salvando…">
-              {edit ? "Salvar colaborador" : "Cadastrar colaborador"}
-            </BotaoEnviar>
-            {edit ? (
-              <button
-                type="button"
-                onClick={() => setEdit(null)}
-                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-              >
-                Cadastrar um novo
-              </button>
-            ) : null}
-          </div>
-        </form>
+        <AreaDeFormulario
+          rotulo={edit ? "Editar colaborador" : "Novo colaborador"}
+          abrirSozinho={Boolean(edit)}
+        >
+          <form action={acao} key={edit?.id ?? "novo"} className="space-y-4">
+            <Erro>{estado.erro}</Erro>
+            <Sucesso>{estado.ok}</Sucesso>
+            {edit ? <input type="hidden" name="id" value={edit.id} /> : null}
+            <Grade colunas={3}>
+              <Campo rotulo="Nome" htmlFor="col-nome">
+                <Input id="col-nome" name="nome" required minLength={3} defaultValue={edit?.nome} />
+              </Campo>
+              <Campo rotulo="Cargo" htmlFor="col-cargo">
+                <Input id="col-cargo" name="cargo" required defaultValue={edit?.cargo} />
+              </Campo>
+              <Campo rotulo="Setor" htmlFor="col-setor" opcional>
+                <Input id="col-setor" name="setor" defaultValue={edit?.setor ?? ""} />
+              </Campo>
+              <Campo rotulo="Admissão" htmlFor="col-admissao">
+                <Input
+                  id="col-admissao"
+                  name="admissao"
+                  type="date"
+                  required
+                  defaultValue={
+                    edit
+                      ? `${edit.admissao.getUTCFullYear()}-${String(edit.admissao.getUTCMonth() + 1).padStart(2, "0")}-${String(edit.admissao.getUTCDate()).padStart(2, "0")}`
+                      : hoje
+                  }
+                />
+              </Campo>
+              <Campo rotulo="Salário" htmlFor="col-salario" dica="Em reais.">
+                <Input
+                  id="col-salario"
+                  name="salario"
+                  required
+                  inputMode="decimal"
+                  defaultValue={edit ? (edit.salario / 100).toFixed(2).replace(".", ",") : ""}
+                  className="num tabular-nums"
+                />
+              </Campo>
+              <Campo rotulo="Situação" htmlFor="col-status">
+                <Select
+                  id="col-status"
+                  name="status"
+                  required
+                  defaultValue={edit?.status ?? "ATIVO"}
+                >
+                  {(Object.keys(STATUS_COLABORADOR) as StatusColaborador[]).map((s) => (
+                    <option key={s} value={s}>
+                      {STATUS_COLABORADOR[s]}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+              <Campo rotulo="CPF" htmlFor="col-cpf" opcional dica="Só números.">
+                <Input
+                  id="col-cpf"
+                  name="cpf"
+                  defaultValue={edit?.cpf ?? ""}
+                  className="num tabular-nums"
+                />
+              </Campo>
+              <Campo rotulo="E-mail" htmlFor="col-email" opcional>
+                <Input id="col-email" name="email" type="email" defaultValue={edit?.email ?? ""} />
+              </Campo>
+            </Grade>
+            <div className="flex flex-wrap items-center gap-3">
+              <BotaoEnviar enviando="Salvando…">
+                {edit ? "Salvar colaborador" : "Cadastrar colaborador"}
+              </BotaoEnviar>
+              {edit ? (
+                <button
+                  type="button"
+                  onClick={() => setEdit(null)}
+                  className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                >
+                  Cadastrar um novo
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </AreaDeFormulario>
       </CardBody>
     </Card>
   );
@@ -225,7 +239,14 @@ export function Beneficios({
             >
               Vencimento
             </label>
-            <Input id="ben-venc" type="date" name="vencimento" required defaultValue={hoje} className="h-9 w-36" />
+            <Input
+              id="ben-venc"
+              type="date"
+              name="vencimento"
+              required
+              defaultValue={hoje}
+              className="h-9 w-36"
+            />
           </div>
           <BotaoEnviar variant="outline" size="sm" enviando="…">
             Gerar contas a pagar
@@ -257,51 +278,57 @@ export function Beneficios({
             ))}
             {beneficios.length === 0 ? (
               <tr>
-                <Td className="text-muted-foreground">
-                  Nenhum benefício nesta competência.
-                </Td>
+                <Td className="text-muted-foreground">Nenhum benefício nesta competência.</Td>
               </tr>
             ) : null}
           </tbody>
         </Tabela>
 
-        <form action={acao} className="space-y-4 border-t border-border pt-5">
-          <Erro>{estado.erro}</Erro>
-          <Sucesso>{estado.ok}</Sucesso>
-          <Grade colunas={3}>
-            <Campo rotulo="Colaborador" htmlFor="ben-col">
-              <Select id="ben-col" name="colaboradorId" required>
-                {colaboradores.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome}
-                  </option>
-                ))}
-              </Select>
-            </Campo>
-            <Campo rotulo="Benefício" htmlFor="ben-tipo">
-              <Select id="ben-tipo" name="tipo" required>
-                {(Object.keys(TIPO_BENEFICIO) as TipoBeneficio[]).map((t) => (
-                  <option key={t} value={t}>
-                    {TIPO_BENEFICIO[t]}
-                  </option>
-                ))}
-              </Select>
-            </Campo>
-            <Campo rotulo="Competência" htmlFor="ben-comp">
-              <Input id="ben-comp" name="competencia" type="month" required defaultValue={competencia} />
-            </Campo>
-            <Campo rotulo="Valor previsto" htmlFor="ben-valor" dica="Em reais.">
-              <Input
-                id="ben-valor"
-                name="previsto"
-                required
-                inputMode="decimal"
-                className="num tabular-nums"
-              />
-            </Campo>
-          </Grade>
-          <BotaoEnviar enviando="Salvando…">Lançar benefício</BotaoEnviar>
-        </form>
+        <AreaDeFormulario rotulo="Lançar benefício do mês">
+          <form action={acao} className="space-y-4">
+            <Erro>{estado.erro}</Erro>
+            <Sucesso>{estado.ok}</Sucesso>
+            <Grade colunas={3}>
+              <Campo rotulo="Colaborador" htmlFor="ben-col">
+                <Select id="ben-col" name="colaboradorId" required>
+                  {colaboradores.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+              <Campo rotulo="Benefício" htmlFor="ben-tipo">
+                <Select id="ben-tipo" name="tipo" required>
+                  {(Object.keys(TIPO_BENEFICIO) as TipoBeneficio[]).map((t) => (
+                    <option key={t} value={t}>
+                      {TIPO_BENEFICIO[t]}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+              <Campo rotulo="Competência" htmlFor="ben-comp">
+                <Input
+                  id="ben-comp"
+                  name="competencia"
+                  type="month"
+                  required
+                  defaultValue={competencia}
+                />
+              </Campo>
+              <Campo rotulo="Valor previsto" htmlFor="ben-valor" dica="Em reais.">
+                <Input
+                  id="ben-valor"
+                  name="previsto"
+                  required
+                  inputMode="decimal"
+                  className="num tabular-nums"
+                />
+              </Campo>
+            </Grade>
+            <BotaoEnviar enviando="Salvando…">Lançar benefício</BotaoEnviar>
+          </form>
+        </AreaDeFormulario>
       </CardBody>
     </Card>
   );
@@ -331,8 +358,8 @@ export function Bonificacoes({
         <div>
           <CardTitle>Bonificações por conta trazida</CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ou entra na folha, ou vira uma conta a pagar própria. Nunca os dois, para não pagar
-            duas vezes.
+            Ou entra na folha, ou vira uma conta a pagar própria. Nunca os dois, para não pagar duas
+            vezes.
           </p>
         </div>
       </CardHeader>
@@ -367,57 +394,65 @@ export function Bonificacoes({
           </tbody>
         </Tabela>
 
-        <form action={acao} className="space-y-4 border-t border-border pt-5">
-          <Erro>{estado.erro}</Erro>
-          <Sucesso>{estado.ok}</Sucesso>
-          <Grade colunas={3}>
-            <Campo rotulo="Colaborador" htmlFor="bon-col">
-              <Select id="bon-col" name="colaboradorId" required>
-                {colaboradores.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome}
-                  </option>
-                ))}
-              </Select>
-            </Campo>
-            <Campo rotulo="Referência" htmlFor="bon-ref" dica="Cliente, conta ou venda.">
-              <Input id="bon-ref" name="referencia" required />
-            </Campo>
-            <Campo rotulo="Competência" htmlFor="bon-comp">
-              <Input
-                id="bon-comp"
-                name="competencia"
-                type="month"
-                required
-                defaultValue={competencia}
-              />
-            </Campo>
-            <Campo rotulo="Valor da conta" htmlFor="bon-conta" dica="Opcional, para referência.">
-              <Input id="bon-conta" name="valorConta" inputMode="decimal" className="num tabular-nums" />
-            </Campo>
-            <Campo rotulo="Bonificação" htmlFor="bon-valor" dica="Em reais.">
-              <Input
-                id="bon-valor"
-                name="valor"
-                required
-                inputMode="decimal"
-                className="num tabular-nums"
-              />
-            </Campo>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  name="naFolha"
-                  defaultChecked
-                  className="size-4 rounded border-input"
+        <AreaDeFormulario rotulo="Lançar bonificação">
+          <form action={acao} className="space-y-4">
+            <TokenDoFormulario />
+            <Erro>{estado.erro}</Erro>
+            <Sucesso>{estado.ok}</Sucesso>
+            <Grade colunas={3}>
+              <Campo rotulo="Colaborador" htmlFor="bon-col">
+                <Select id="bon-col" name="colaboradorId" required>
+                  {colaboradores.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+              <Campo rotulo="Referência" htmlFor="bon-ref" dica="Cliente, conta ou venda.">
+                <Input id="bon-ref" name="referencia" required />
+              </Campo>
+              <Campo rotulo="Competência" htmlFor="bon-comp">
+                <Input
+                  id="bon-comp"
+                  name="competencia"
+                  type="month"
+                  required
+                  defaultValue={competencia}
                 />
-                Pagar dentro da folha
-              </label>
-            </div>
-          </Grade>
-          <BotaoEnviar enviando="Salvando…">Lançar bonificação</BotaoEnviar>
-        </form>
+              </Campo>
+              <Campo rotulo="Valor da conta" htmlFor="bon-conta" opcional dica="Para referência.">
+                <Input
+                  id="bon-conta"
+                  name="valorConta"
+                  inputMode="decimal"
+                  className="num tabular-nums"
+                />
+              </Campo>
+              <Campo rotulo="Bonificação" htmlFor="bon-valor" dica="Em reais.">
+                <Input
+                  id="bon-valor"
+                  name="valor"
+                  required
+                  inputMode="decimal"
+                  className="num tabular-nums"
+                />
+              </Campo>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="naFolha"
+                    defaultChecked
+                    className="size-4 rounded border-input"
+                  />
+                  Pagar dentro da folha
+                </label>
+              </div>
+            </Grade>
+            <BotaoEnviar enviando="Salvando…">Lançar bonificação</BotaoEnviar>
+          </form>
+        </AreaDeFormulario>
       </CardBody>
     </Card>
   );

@@ -7,7 +7,7 @@ import { Categoria, Direcao, FormaPagamento, MeioVenda, Origem } from "@prisma/c
 import { db } from "@/lib/db";
 import { exigir, PAPEIS_ADMIN, PAPEIS_FINANCEIRO } from "@/lib/permissoes";
 import { exigirMesAberto } from "@/lib/fechamento";
-import { inicioDoMes } from "@/lib/mes";
+import { inicioDoMes, somarMeses } from "@/lib/mes";
 import { calcularCascata, dividirRepasses } from "@/lib/money";
 import { bpsDoMeio, taxaVigente } from "@/lib/taxas";
 import {
@@ -19,6 +19,7 @@ import {
   textoOpcional,
 } from "@/lib/validacao";
 import { aviso, ehRedirect, falha, type Estado } from "@/lib/acoes/comum";
+import { registrarToken } from "@/lib/idempotencia";
 
 const opcional = (v: FormDataEntryValue | null) => {
   const s = String(v ?? "").trim();
@@ -49,7 +50,9 @@ export async function salvarCurso(_estado: Estado, dados: FormData): Promise<Est
         data: { nome: d.nome, preco: d.preco, ativo: d.ativo },
       });
     } else {
-      await db.curso.create({ data: { nome: d.nome, preco: d.preco, ativo: d.ativo } });
+      await db.curso.create({
+        data: { nome: d.nome, preco: d.preco, ativo: d.ativo },
+      });
     }
 
     revalidatePath("/cursos");
@@ -106,7 +109,9 @@ export async function salvarCupom(_estado: Estado, dados: FormData): Promise<Est
     if (d.id) {
       await db.cupom.update({ where: { id: d.id }, data: payload });
     } else {
-      const existente = await db.cupom.findUnique({ where: { codigo: d.codigo } });
+      const existente = await db.cupom.findUnique({
+        where: { codigo: d.codigo },
+      });
       if (existente) aviso("Já existe um cupom com esse código.");
       await db.cupom.create({ data: payload });
     }
@@ -126,12 +131,10 @@ export async function salvarCupom(_estado: Estado, dados: FormData): Promise<Est
 export async function salvarTaxas(_estado: Estado, dados: FormData): Promise<Estado> {
   try {
     await exigir(PAPEIS_ADMIN);
-    const d = z
-      .object({ vigenteDe: dataObrigatoria, observacao: textoOpcional })
-      .parse({
-        vigenteDe: dados.get("vigenteDe"),
-        observacao: String(dados.get("observacao") ?? ""),
-      });
+    const d = z.object({ vigenteDe: dataObrigatoria, observacao: textoOpcional }).parse({
+      vigenteDe: dados.get("vigenteDe"),
+      observacao: String(dados.get("observacao") ?? ""),
+    });
 
     const campos = ["nota", "pix", "cartao"] as const;
     const bps: Record<string, number> = {};
@@ -240,7 +243,7 @@ export async function lancarVenda(_estado: Estado, dados: FormData): Promise<Est
     }
 
     const desconto = cupom
-      ? cupom.valorFixo ?? Math.round((bruto * (cupom.percentBps ?? 0)) / 10_000)
+      ? (cupom.valorFixo ?? Math.round((bruto * (cupom.percentBps ?? 0)) / 10_000))
       : 0;
     if (desconto > bruto) aviso("O cupom é maior que o valor da venda.");
 
@@ -253,10 +256,18 @@ export async function lancarVenda(_estado: Estado, dados: FormData): Promise<Est
       gatewayFixo: taxa.fixoPorVenda,
     });
 
+    if (conta.negativo) {
+      aviso(
+        "A conta fecha negativa: a nota e a taxa somam mais do que o aluno pagou. Confira o valor da venda e as taxas cadastradas antes de lançar."
+      );
+    }
+
     const fatias = dividirRepasses(conta.liquido, d.parcelas);
     const nome = curso?.nome ?? d.descricao ?? "Venda do site";
 
+    const token = opcional(dados.get("token"));
     await db.$transaction(async (tx) => {
+      await registrarToken(tx, token, "lancarVenda");
       const titulo = await tx.titulo.create({
         data: {
           empresaId: d.empresaId,
@@ -296,9 +307,7 @@ export async function lancarVenda(_estado: Estado, dados: FormData): Promise<Est
           vendaId: venda.id,
           numero: i + 1,
           valor,
-          previsao: new Date(
-            Date.UTC(d.data.getUTCFullYear(), d.data.getUTCMonth() + i, d.data.getUTCDate())
-          ),
+          previsao: somarMeses(d.data, i),
         })),
       });
 
@@ -328,7 +337,11 @@ export async function marcarRepasse(_estado: Estado, dados: FormData): Promise<E
   try {
     const sessao = await exigir(PAPEIS_FINANCEIRO);
     const d = z
-      .object({ repasseId: z.string().min(1), data: dataObrigatoria, contaId: z.string().optional() })
+      .object({
+        repasseId: z.string().min(1),
+        data: dataObrigatoria,
+        contaId: z.string().optional(),
+      })
       .parse({
         repasseId: dados.get("repasseId"),
         data: dados.get("data"),
@@ -344,17 +357,30 @@ export async function marcarRepasse(_estado: Estado, dados: FormData): Promise<E
     await exigirMesAberto(d.data);
 
     await db.$transaction(async (tx) => {
-      await tx.repasse.update({ where: { id: repasse.id }, data: { efetivo: d.data } });
-      await tx.baixa.create({
+      // O `updateMany` com `efetivo: null` na condição é a trava: se dois
+      // cliques chegarem juntos, só um acha a linha ainda em aberto. Sem isso,
+      // os dois leriam "não recebido" e a venda seria baixada duas vezes.
+      const marcados = await tx.repasse.updateMany({
+        where: { id: repasse.id, efetivo: null },
+        data: { efetivo: d.data },
+      });
+      if (marcados.count !== 1) aviso("Este repasse já está marcado como recebido.");
+
+      const baixa = await tx.baixa.create({
         data: {
           tituloId: repasse.venda.tituloId,
           valor: repasse.valor,
           data: d.data,
-          forma:
-            repasse.venda.meio === MeioVenda.PIX ? FormaPagamento.PIX : FormaPagamento.CARTAO,
+          forma: repasse.venda.meio === MeioVenda.PIX ? FormaPagamento.PIX : FormaPagamento.CARTAO,
           contaId: d.contaId ?? null,
           registradoPorId: sessao.id,
         },
+      });
+
+      // O vínculo é o que deixa o estorno reabrir o repasse depois.
+      await tx.repasse.update({
+        where: { id: repasse.id },
+        data: { baixaId: baixa.id },
       });
     });
 

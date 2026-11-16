@@ -14,7 +14,14 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { BotaoEnviar, Campo, Erro, Grade, LinhaDeAcoes } from "@/components/financeiro/formulario";
+import {
+  BotaoEnviar,
+  Campo,
+  Erro,
+  Grade,
+  LinhaDeAcoes,
+  TokenDoFormulario,
+} from "@/components/financeiro/formulario";
 
 export type OpcaoSimples = { id: string; nome: string };
 export type OpcaoContrato = { id: string; nome: string; clienteId: string };
@@ -56,6 +63,7 @@ export function FormTitulo({
   return (
     <form action={acao} className="space-y-6">
       <input type="hidden" name="direcao" value={direcao} />
+      <TokenDoFormulario />
       <Erro>{estado.erro}</Erro>
 
       <Card>
@@ -109,7 +117,7 @@ export function FormTitulo({
                   ))}
                 </Select>
               </Campo>
-              <Campo rotulo="Contrato" htmlFor="contratoId" dica="Opcional.">
+              <Campo rotulo="Contrato" htmlFor="contratoId" opcional>
                 <Select id="contratoId" name="contratoId">
                   <option value="">Sem contrato</option>
                   {contratosDoCliente.map((c) => (
@@ -208,7 +216,7 @@ export function FormTitulo({
             >
               <Input id="vencimento" name="vencimento" type="date" required defaultValue={hoje} />
             </Campo>
-            <Campo rotulo="Forma prevista" htmlFor="forma" dica="Opcional.">
+            <Campo rotulo="Forma prevista" htmlFor="forma" opcional>
               <Select id="forma" name="forma">
                 <option value="">A definir</option>
                 {(Object.keys(FORMA) as Array<keyof typeof FORMA>).map((f) => (
@@ -235,7 +243,7 @@ export function FormTitulo({
             </div>
           ) : null}
 
-          <Campo rotulo="Observações" htmlFor="observacoes" dica="Opcional.">
+          <Campo rotulo="Observações" htmlFor="observacoes" opcional>
             <Textarea id="observacoes" name="observacoes" maxLength={2000} />
           </Campo>
         </CardBody>

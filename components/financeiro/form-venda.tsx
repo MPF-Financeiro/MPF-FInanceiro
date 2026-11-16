@@ -13,7 +13,14 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Cascata } from "@/components/financeiro/cascata";
-import { BotaoEnviar, Campo, Erro, Grade, LinhaDeAcoes } from "@/components/financeiro/formulario";
+import {
+  BotaoEnviar,
+  Campo,
+  Erro,
+  Grade,
+  LinhaDeAcoes,
+  TokenDoFormulario,
+} from "@/components/financeiro/formulario";
 
 export type CursoOpcao = { id: string; nome: string; preco: number };
 export type CupomOpcao = {
@@ -63,10 +70,12 @@ export function FormVenda({
           gatewayFixo: taxa.fixoPorVenda,
         })
       : null;
-  const fatias = conta && parcelas > 1 ? dividirRepasses(conta.liquido, parcelas) : [];
+  const fatias =
+    conta && !conta.negativo && parcelas > 1 ? dividirRepasses(conta.liquido, parcelas) : [];
 
   return (
     <form action={acao} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <TokenDoFormulario />
       <div className="space-y-6">
         <Erro>{estado.erro}</Erro>
         <Card>
@@ -112,7 +121,7 @@ export function FormVenda({
                   ))}
                 </Select>
               </Campo>
-              <Campo rotulo="Cupom" htmlFor="cupomId" dica="Opcional.">
+              <Campo rotulo="Cupom" htmlFor="cupomId" opcional>
                 <Select
                   id="cupomId"
                   name="cupomId"
@@ -208,6 +217,15 @@ export function FormVenda({
         {conta ? (
           <>
             <Cascata titulo="A conta desta venda" linhas={conta.linhas} />
+            {conta.negativo ? (
+              <p
+                role="status"
+                className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+              >
+                A conta fecha negativa: a nota e a taxa somam mais do que o aluno pagou. Confira o
+                valor e as taxas antes de lançar.
+              </p>
+            ) : null}
             <p className="text-xs text-muted-foreground">
               Nota fiscal {formatBps(taxa.notaBps)} e taxa do Paga-me{" "}
               {formatBps(meio === "PIX" ? taxa.pixBps : taxa.cartaoBps)}, pela vigência da data da

@@ -8,7 +8,6 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Carimbo } from "@/components/financeiro/chip";
 import { BotaoEnviar, Campo, Erro, Grade, Sucesso } from "@/components/financeiro/formulario";
 import { Tabela, Td, Th } from "@/components/financeiro/tabela";
 
@@ -93,9 +92,9 @@ export function Vouchers({
                   <Td>{data(v.repassePrevisto)}</Td>
                   <Td>
                     {v.cancelado ? (
-                      <Carimbo neutro>Cancelado</Carimbo>
+                      <span className="chip chip-plain">Cancelado</span>
                     ) : v.recebido ? (
-                      <Carimbo>Repasse recebido</Carimbo>
+                      <span className="chip chip-ok">Repasse recebido</span>
                     ) : v.utilizacao ? (
                       <span className="chip chip-warn">Aguardando repasse</span>
                     ) : (
@@ -153,7 +152,7 @@ export function Vouchers({
                 <Campo rotulo="Código" htmlFor="v-codigo">
                   <Input id="v-codigo" name="codigo" required className="num tabular-nums" />
                 </Campo>
-                <Campo rotulo="Cliente" htmlFor="v-cliente" dica="Opcional.">
+                <Campo rotulo="Cliente" htmlFor="v-cliente" opcional>
                   <Select id="v-cliente" name="clienteId">
                     <option value="">Sem cliente</option>
                     {clientes.map((c) => (
@@ -175,11 +174,11 @@ export function Vouchers({
                 <Campo rotulo="Emissão" htmlFor="v-emissao">
                   <Input id="v-emissao" name="emissao" type="date" required defaultValue={hoje} />
                 </Campo>
-                <Campo rotulo="Repasse previsto" htmlFor="v-repasse" dica="Opcional.">
+                <Campo rotulo="Repasse previsto" htmlFor="v-repasse" opcional>
                   <Input id="v-repasse" name="repassePrevisto" type="date" />
                 </Campo>
               </Grade>
-              <Campo rotulo="Observações" htmlFor="v-obs" dica="Opcional.">
+              <Campo rotulo="Observações" htmlFor="v-obs" opcional>
                 <Textarea id="v-obs" name="observacoes" />
               </Campo>
               <BotaoEnviar enviando="Salvando…">Cadastrar voucher</BotaoEnviar>

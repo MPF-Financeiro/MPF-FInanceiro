@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Cascata } from "@/components/financeiro/cascata";
 import { Carimbo } from "@/components/financeiro/chip";
 import { BotaoEnviar, Campo, Erro, Grade, Sucesso } from "@/components/financeiro/formulario";
-import { Tabela, Td, Th } from "@/components/financeiro/tabela";
+import { AcaoDaLinha, Tabela, Td, Th } from "@/components/financeiro/tabela";
 
 export type ItemFolhaLinha = {
   id: string;
@@ -63,8 +63,8 @@ export function AbrirFolha({ competencia }: { competencia: string }) {
           <BotaoEnviar enviando="Abrindo…">Abrir folha</BotaoEnviar>
         </form>
         <p className="mt-3 text-sm text-muted-foreground">
-          A folha nasce com todos os colaboradores ativos, o salário de cada um e as bonificações
-          da competência que foram marcadas para entrar na folha.
+          A folha nasce com todos os colaboradores ativos, o salário de cada um e as bonificações da
+          competência que foram marcadas para entrar na folha.
         </p>
       </CardBody>
     </Card>
@@ -143,13 +143,12 @@ export function Folha({ folha, podeEscrever }: { folha: FolhaDados; podeEscrever
                   </Td>
                   <Td>
                     {podeEscrever && !folha.fechadaEm ? (
-                      <button
-                        type="button"
+                      <AcaoDaLinha
+                        oQue={`o contracheque de ${i.colaborador}`}
                         onClick={() => setAberto(aberto === i.id ? null : i.id)}
-                        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
                       >
                         {aberto === i.id ? "Fechar" : "Ajustar"}
-                      </button>
+                      </AcaoDaLinha>
                     ) : null}
                   </Td>
                 </tr>
@@ -157,11 +156,28 @@ export function Folha({ folha, podeEscrever }: { folha: FolhaDados; podeEscrever
             </tbody>
           </Tabela>
 
-          <div className="grid gap-4 sm:grid-cols-4">
-            <Resumo rotulo="Salários brutos" valor={totalBruto} />
-            <Resumo rotulo="Descontos" valor={totalDescontos} />
-            <Resumo rotulo="Vales" valor={totalVales} />
-            <Resumo rotulo="Líquido a pagar" valor={totalLiquido} forte />
+          {/*
+            Quatro cartões iguais mostram quatro números sem dizer que um sai
+            do outro. A regra da casa é cascata: o bruto menos os descontos dá
+            o líquido, e os vales entram como linha à parte porque são pagos
+            fora da folha, não somados ao líquido.
+          */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Cascata
+              titulo="A conta desta folha"
+              linhas={[
+                { rotulo: "Salários brutos", valor: totalBruto },
+                { rotulo: "Descontos", valor: -totalDescontos },
+                { rotulo: "Líquido a pagar", valor: totalLiquido, total: true },
+              ]}
+            />
+            <div className="space-y-3">
+              <Resumo rotulo="Vales (VA e VT)" valor={totalVales} />
+              <p className="text-sm text-muted-foreground">
+                Os vales ficam de fora do líquido de propósito: eles são pagos pela operadora ou em
+                dinheiro, e somá-los aqui pagaria duas vezes o mesmo valor.
+              </p>
+            </div>
           </div>
 
           {podeEscrever ? (
@@ -172,17 +188,31 @@ export function Folha({ folha, podeEscrever }: { folha: FolhaDados; podeEscrever
                   {folha.fechadaEm ? "Reabrir folha" : "Fechar folha"}
                 </BotaoEnviar>
               </form>
-              <form action={acaoEnviar}>
+              {/*
+                Botão desabilitado sem explicação é a pessoa clicando e achando
+                que a tela travou. O motivo fica do lado, ligado ao botão por
+                aria-describedby.
+              */}
+              <form action={acaoEnviar} className="flex flex-wrap items-center gap-3">
                 <input type="hidden" name="id" value={folha.id} />
-                <BotaoEnviar enviando="Enviando…" disabled={!folha.fechadaEm}>
+                <BotaoEnviar
+                  enviando="Enviando…"
+                  disabled={!folha.fechadaEm}
+                  aria-describedby={folha.fechadaEm ? undefined : "motivo-enviar"}
+                >
                   {folha.enviadaEm ? "Reenviar ao Financeiro" : "Mandar para o Financeiro"}
                 </BotaoEnviar>
+                {folha.fechadaEm ? null : (
+                  <span id="motivo-enviar" className="text-sm text-muted-foreground">
+                    Feche a folha primeiro: só folha fechada vira conta a pagar.
+                  </span>
+                )}
               </form>
             </div>
           ) : null}
           <p className="text-sm text-muted-foreground">
-            Mandar para o Financeiro cria uma conta a pagar por colaborador, com vencimento no dia
-            5 do mês seguinte. Reenviar a folha corrigida atualiza as mesmas contas em vez de criar
+            Mandar para o Financeiro cria uma conta a pagar por colaborador, com vencimento no dia 5
+            do mês seguinte. Reenviar a folha corrigida atualiza as mesmas contas em vez de criar
             novas, e salário já pago não é mexido.
           </p>
         </CardBody>
@@ -197,15 +227,7 @@ export function Folha({ folha, podeEscrever }: { folha: FolhaDados; podeEscrever
   );
 }
 
-function Resumo({
-  rotulo,
-  valor,
-  forte,
-}: {
-  rotulo: string;
-  valor: number;
-  forte?: boolean;
-}) {
+function Resumo({ rotulo, valor, forte }: { rotulo: string; valor: number; forte?: boolean }) {
   return (
     <div className="rounded-lg border border-border px-4 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -248,11 +270,7 @@ function ItemFolhaForm({ item }: { item: ItemFolhaLinha }) {
     conta = null;
   }
 
-  const campo = (
-    chave: keyof typeof campos,
-    rotulo: string,
-    dica?: string
-  ) => (
+  const campo = (chave: keyof typeof campos, rotulo: string, dica?: string) => (
     <Campo rotulo={rotulo} htmlFor={`${item.id}-${chave}`} dica={dica}>
       <Input
         id={`${item.id}-${chave}`}

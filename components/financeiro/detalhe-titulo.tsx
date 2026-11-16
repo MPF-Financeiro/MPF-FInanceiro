@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Cascata } from "@/components/financeiro/cascata";
-import { Carimbo, ChipStatus } from "@/components/financeiro/chip";
+import { ChipStatus } from "@/components/financeiro/chip";
 import { BotaoEnviar, Campo, Erro, Grade, Sucesso } from "@/components/financeiro/formulario";
 import { Tabela, Td, Th } from "@/components/financeiro/tabela";
 
@@ -70,7 +70,6 @@ export function DetalheTitulo({
                   entrada === "PAGAR" && titulo.status === "QUITADO" ? "Pago" : undefined
                 }
               />
-              {titulo.canceladoEm ? <Carimbo neutro>Cancelado</Carimbo> : null}
             </div>
           </CardHeader>
           <CardBody>
@@ -144,7 +143,9 @@ export function DetalheTitulo({
                       <Td className="text-muted-foreground">{b.registradoPor?.nome ?? "—"}</Td>
                       <Td className="text-muted-foreground">{b.motivo ?? "—"}</Td>
                       <Td>
-                        {podeEscrever && b.valor > 0 ? (
+                        {b.estornadaPor ? (
+                          <span className="chip chip-plain">Estornada</span>
+                        ) : podeEscrever && b.valor > 0 ? (
                           <form action={acaoEstorno} className="flex items-center gap-2">
                             <input type="hidden" name="baixaId" value={b.id} />
                             <input type="hidden" name="data" value={hoje} />
@@ -214,7 +215,7 @@ export function DetalheTitulo({
                 </Campo>
               </Grade>
               <Grade>
-                <Campo rotulo="Conta bancária" htmlFor="contaId" dica="Opcional.">
+                <Campo rotulo="Conta bancária" htmlFor="contaId" opcional>
                   <Select id="contaId" name="contaId">
                     <option value="">Não informar</option>
                     {contas.map((c) => (

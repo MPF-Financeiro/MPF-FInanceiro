@@ -174,7 +174,11 @@ export async function opcoesDeLancamento() {
 const DETALHE = {
   baixas: {
     orderBy: { data: "asc" },
-    include: { conta: true, registradoPor: { select: { nome: true } } },
+    include: {
+      conta: true,
+      registradoPor: { select: { nome: true } },
+      estornadaPor: { select: { id: true } },
+    },
   },
   cliente: true,
   fornecedor: true,

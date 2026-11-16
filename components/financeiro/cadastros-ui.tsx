@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BotaoEnviar, Campo, Erro, Grade, Sucesso } from "@/components/financeiro/formulario";
-import { Tabela, Td, Th } from "@/components/financeiro/tabela";
+import { AcaoDaLinha, Tabela, Td, Th } from "@/components/financeiro/tabela";
 
 type Opcao = { id: string; nome: string };
 
@@ -111,13 +111,9 @@ export function Clientes({
               <Td numero>{c.titulos}</Td>
               <Td className="text-muted-foreground">{c.ativo ? "Ativo" : "Inativo"}</Td>
               <Td>
-                <button
-                  type="button"
-                  onClick={() => setEdit(c)}
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
+                <AcaoDaLinha oQue={`o cliente ${c.nome}`} onClick={() => setEdit(c)}>
                   Editar
-                </button>
+                </AcaoDaLinha>
               </Td>
             </tr>
           ))}
@@ -155,13 +151,13 @@ export function Clientes({
               ))}
             </Select>
           </Campo>
-          <Campo rotulo="CNPJ ou CPF" htmlFor="cliente-doc" dica="Opcional.">
+          <Campo rotulo="CNPJ ou CPF" htmlFor="cliente-doc" opcional>
             <Input id="cliente-doc" name="documento" defaultValue={edit?.documento ?? ""} />
           </Campo>
-          <Campo rotulo="Pessoa de contato" htmlFor="cliente-contato" dica="Opcional.">
+          <Campo rotulo="Pessoa de contato" htmlFor="cliente-contato" opcional>
             <Input id="cliente-contato" name="contato" defaultValue={edit?.contato ?? ""} />
           </Campo>
-          <Campo rotulo="Telefone" htmlFor="cliente-tel" dica="Opcional.">
+          <Campo rotulo="Telefone" htmlFor="cliente-tel" opcional>
             <Input id="cliente-tel" name="telefone" defaultValue={edit?.telefone ?? ""} />
           </Campo>
           <div className="flex items-end">
@@ -222,13 +218,9 @@ export function Fornecedores({
               <Td className="text-muted-foreground">{CATEGORIA[f.categoria]}</Td>
               <Td className="text-muted-foreground">{f.ativo ? "Ativo" : "Inativo"}</Td>
               <Td>
-                <button
-                  type="button"
-                  onClick={() => setEdit(f)}
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                >
+                <AcaoDaLinha oQue={`o fornecedor ${f.nome}`} onClick={() => setEdit(f)}>
                   Editar
-                </button>
+                </AcaoDaLinha>
               </Td>
             </tr>
           ))}
@@ -248,7 +240,7 @@ export function Fornecedores({
           <Campo rotulo="Nome" htmlFor="forn-nome">
             <Input id="forn-nome" name="nome" required defaultValue={edit?.nome} />
           </Campo>
-          <Campo rotulo="CNPJ ou CPF" htmlFor="forn-doc" dica="Opcional.">
+          <Campo rotulo="CNPJ ou CPF" htmlFor="forn-doc" opcional>
             <Input id="forn-doc" name="documento" defaultValue={edit?.documento ?? ""} />
           </Campo>
           <Campo rotulo="Categoria" htmlFor="forn-cat">
@@ -405,14 +397,14 @@ export function Contratos({
           <Campo rotulo="Início" htmlFor="contrato-inicio">
             <Input id="contrato-inicio" name="inicio" type="date" required defaultValue={hoje} />
           </Campo>
-          <Campo rotulo="Fim" htmlFor="contrato-fim" dica="Opcional.">
+          <Campo rotulo="Fim" htmlFor="contrato-fim" opcional>
             <Input id="contrato-fim" name="fim" type="date" />
           </Campo>
-          <Campo rotulo="Arquivo assinado" htmlFor="contrato-arquivo" dica="Link do PDF. Opcional.">
+          <Campo rotulo="Arquivo assinado" htmlFor="contrato-arquivo" opcional dica="Link do PDF.">
             <Input id="contrato-arquivo" name="arquivo" />
           </Campo>
         </Grade>
-        <Campo rotulo="Observações" htmlFor="contrato-obs" dica="Opcional.">
+        <Campo rotulo="Observações" htmlFor="contrato-obs" opcional>
           <Textarea id="contrato-obs" name="observacoes" />
         </Campo>
         <BotaoEnviar enviando="Salvando…">Cadastrar contrato</BotaoEnviar>
@@ -531,10 +523,10 @@ export function EmpresasEContas({
               <Campo rotulo="Banco" htmlFor="conta-banco">
                 <Input id="conta-banco" name="banco" required />
               </Campo>
-              <Campo rotulo="Agência" htmlFor="conta-ag" dica="Opcional.">
+              <Campo rotulo="Agência" htmlFor="conta-ag" opcional>
                 <Input id="conta-ag" name="agencia" />
               </Campo>
-              <Campo rotulo="Número" htmlFor="conta-num" dica="Opcional.">
+              <Campo rotulo="Número" htmlFor="conta-num" opcional>
                 <Input id="conta-num" name="numero" />
               </Campo>
             </Grade>

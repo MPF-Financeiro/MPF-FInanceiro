@@ -39,16 +39,31 @@ export default async function PainelPage() {
             <ul className="space-y-2.5">
               {avisos.map((a) => (
                 <li key={a.href + a.texto} className="flex items-start gap-2.5 text-sm">
+                  {/*
+                    A urgência não pode estar só na cor: quem não distingue
+                    vermelho de amarelo, ou imprime a tela, tem de ver a
+                    diferença. Então a bolinha também muda de forma — cheia,
+                    vazada, traço — e a palavra vai no texto para o leitor de
+                    tela.
+                  */}
                   <span
                     aria-hidden
                     className={cn(
-                      "mt-1.5 size-2 shrink-0 rounded-full",
-                      a.tom === "ruim" && "bg-destructive",
-                      a.tom === "atencao" && "bg-[hsl(var(--warning))]",
-                      a.tom === "neutro" && "bg-muted-foreground/50"
+                      "mt-1.5 size-2 shrink-0 rounded-full border-2",
+                      a.tom === "ruim" && "border-destructive bg-destructive",
+                      a.tom === "atencao" && "border-[hsl(var(--warning))] bg-transparent",
+                      a.tom === "neutro" &&
+                        "size-2 rounded-none border-0 border-b-2 border-muted-foreground/60 bg-transparent"
                     )}
                   />
                   <Link href={a.href} className="underline-offset-4 hover:underline">
+                    <span className="sr-only">
+                      {a.tom === "ruim"
+                        ? "Urgente: "
+                        : a.tom === "atencao"
+                          ? "Atenção: "
+                          : "Para conferir: "}
+                    </span>
                     {a.texto}
                   </Link>
                 </li>
@@ -59,8 +74,17 @@ export default async function PainelPage() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Numero rotulo="A receber" valor={resumo.aReceber} nota="saldo em aberto, todas as competências" />
-        <Numero rotulo="Recebido no mês" valor={resumo.recebidoNoMes} tom="bom" nota="soma das baixas" />
+        <Numero
+          rotulo="A receber"
+          valor={resumo.aReceber}
+          nota="saldo em aberto, todas as competências"
+        />
+        <Numero
+          rotulo="Recebido no mês"
+          valor={resumo.recebidoNoMes}
+          tom="bom"
+          nota="soma das baixas"
+        />
         <Numero rotulo="A pagar no mês" valor={resumo.aPagar} nota="competência deste mês" />
         <Numero
           rotulo="Vencido"

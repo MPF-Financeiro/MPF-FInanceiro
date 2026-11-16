@@ -6,7 +6,7 @@ import { Direcao } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigir, PAPEIS_ADMIN, PAPEIS_FINANCEIRO } from "@/lib/permissoes";
 import { fimDoMes, inicioDoMes } from "@/lib/mes";
-import { lerExtrato } from "@/lib/extrato";
+import { efeitoNoCaixa, lerExtrato } from "@/lib/extrato";
 import { competencia as competenciaZ, dinheiro, parseCentavos } from "@/lib/validacao";
 import { aviso, ehRedirect, falha, type Estado } from "@/lib/acoes/comum";
 
@@ -18,7 +18,10 @@ export async function importarExtrato(_estado: Estado, dados: FormData): Promise
   try {
     await exigir(PAPEIS_FINANCEIRO);
     const d = z
-      .object({ contaId: z.string().min(1, "Escolha a conta"), texto: z.string().min(5, "Cole o extrato") })
+      .object({
+        contaId: z.string().min(1, "Escolha a conta"),
+        texto: z.string().min(5, "Cole o extrato"),
+      })
       .parse({ contaId: dados.get("contaId"), texto: dados.get("texto") });
 
     const { linhas, erros } = lerExtrato(d.texto);
@@ -46,7 +49,12 @@ export async function importarExtrato(_estado: Estado, dados: FormData): Promise
     return {
       erro: null,
       ok: `${resultado.count} movimentos importados${repetidas > 0 ? `, ${repetidas} já existiam` : ""}${
-        erros.length > 0 ? `. ${erros.length} linhas não foram lidas: ${erros.slice(0, 3).map((e) => `linha ${e.linha} (${e.motivo})`).join("; ")}` : ""
+        erros.length > 0
+          ? `. ${erros.length} linhas não foram lidas: ${erros
+              .slice(0, 3)
+              .map((e) => `linha ${e.linha} (${e.motivo})`)
+              .join("; ")}`
+          : ""
       }.`,
     };
   } catch (e) {
@@ -60,18 +68,38 @@ export async function conciliar(_estado: Estado, dados: FormData): Promise<Estad
   try {
     await exigir(PAPEIS_FINANCEIRO);
     const d = z
-      .object({ movimentoId: z.string().min(1), baixaId: z.string().min(1, "Escolha a baixa") })
-      .parse({ movimentoId: dados.get("movimentoId"), baixaId: dados.get("baixaId") });
+      .object({
+        movimentoId: z.string().min(1),
+        baixaId: z.string().min(1, "Escolha a baixa"),
+      })
+      .parse({
+        movimentoId: dados.get("movimentoId"),
+        baixaId: dados.get("baixaId"),
+      });
 
     const [movimento, baixa] = await Promise.all([
       db.movimentoExtrato.findUnique({ where: { id: d.movimentoId } }),
-      db.baixa.findUnique({ where: { id: d.baixaId }, include: { movimento: true } }),
+      db.baixa.findUnique({
+        where: { id: d.baixaId },
+        include: { movimento: true, titulo: { select: { direcao: true } } },
+      }),
     ]);
     if (!movimento) aviso("Movimento não encontrado.");
     if (!baixa) aviso("Baixa não encontrada.");
     if (movimento.baixaId) aviso("Este movimento já está conciliado.");
     if (baixa.movimento) aviso("Esta baixa já está conciliada com outro movimento.");
-    if (Math.abs(movimento.valor) !== Math.abs(baixa.valor)) {
+    // Comparar só o valor absoluto deixava conciliar uma entrada do extrato com
+    // o pagamento de um fornecedor do mesmo valor. O sinal entra na conferência:
+    // o que entrou na conta casa com o que foi recebido, não com o que foi pago.
+    const efeito = efeitoNoCaixa(baixa.valor, baixa.titulo.direcao);
+    if (efeito !== movimento.valor) {
+      if (Math.abs(efeito) === Math.abs(movimento.valor)) {
+        aviso(
+          movimento.valor > 0
+            ? "Este movimento é uma entrada na conta, e a baixa escolhida é de um pagamento. Escolha uma baixa de recebimento."
+            : "Este movimento é uma saída da conta, e a baixa escolhida é de um recebimento. Escolha uma baixa de pagamento."
+        );
+      }
       aviso("O valor do movimento e o da baixa são diferentes.");
     }
 
@@ -93,7 +121,10 @@ export async function desconciliar(_estado: Estado, dados: FormData): Promise<Es
     await exigir(PAPEIS_FINANCEIRO);
     const id = String(dados.get("movimentoId") ?? "");
     if (!id) aviso("Movimento não informado.");
-    await db.movimentoExtrato.update({ where: { id }, data: { baixaId: null } });
+    await db.movimentoExtrato.update({
+      where: { id },
+      data: { baixaId: null },
+    });
     revalidatePath("/banco");
     return { erro: null, ok: "Conciliação desfeita." };
   } catch (e) {
@@ -109,7 +140,10 @@ export async function saldoCalculado(
   saldoInicial: number
 ): Promise<{ entradas: number; saidas: number; saldoFinal: number }> {
   const baixas = await db.baixa.findMany({
-    where: { contaId, data: { gte: inicioDoMes(competencia), lt: fimDoMes(competencia) } },
+    where: {
+      contaId,
+      data: { gte: inicioDoMes(competencia), lt: fimDoMes(competencia) },
+    },
     include: { titulo: { select: { direcao: true } } },
   });
   const entradas = baixas
@@ -156,7 +190,9 @@ export async function fecharMes(_estado: Estado, dados: FormData): Promise<Estad
     });
 
     await db.fechamentoMensal.upsert({
-      where: { contaId_competencia: { contaId: d.contaId, competencia: d.competencia } },
+      where: {
+        contaId_competencia: { contaId: d.contaId, competencia: d.competencia },
+      },
       update: {
         saldoInicial: d.saldoInicial,
         saldoFinalCalculado: calculado.saldoFinal,
@@ -195,10 +231,15 @@ export async function reabrirMes(_estado: Estado, dados: FormData): Promise<Esta
   try {
     await exigir(PAPEIS_ADMIN);
     const d = z
-      .object({ id: z.string().min(1), motivo: z.string().trim().min(5, "Escreva o motivo") })
+      .object({
+        id: z.string().min(1),
+        motivo: z.string().trim().min(5, "Escreva o motivo"),
+      })
       .parse({ id: dados.get("id"), motivo: dados.get("motivo") });
 
-    const fechamento = await db.fechamentoMensal.findUnique({ where: { id: d.id } });
+    const fechamento = await db.fechamentoMensal.findUnique({
+      where: { id: d.id },
+    });
     if (!fechamento) aviso("Fechamento não encontrado.");
 
     await db.fechamentoMensal.update({
@@ -221,7 +262,9 @@ export async function reabrirMes(_estado: Estado, dados: FormData): Promise<Esta
 /** Verificação do mês antes de fechar, para a tela mostrar o que falta. */
 export async function conferirMes(contaId: string, competencia: Date) {
   const fechamento = await db.fechamentoMensal.findUnique({
-    where: { contaId_competencia: { contaId, competencia: inicioDoMes(competencia) } },
+    where: {
+      contaId_competencia: { contaId, competencia: inicioDoMes(competencia) },
+    },
   });
   const saldoInicial = fechamento?.saldoInicial ?? 0;
   const calculado = await saldoCalculado(contaId, competencia, saldoInicial);

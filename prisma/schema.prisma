@@ -264,6 +264,14 @@ model Baixa {
   criadoEm  DateTime @default(now())
 
   movimento MovimentoExtrato?
+  repasse   Repasse?
+
+  /// O estorno aponta para a baixa que desfaz. Como `estornoDeId` é único, o
+  /// próprio banco impede estornar a mesma baixa duas vezes — que é o que
+  /// acontece quando alguém clica duas vezes no botão.
+  estornoDe    Baixa?  @relation("EstornoDaBaixa", fields: [estornoDeId], references: [id])
+  estornoDeId  String? @unique
+  estornadaPor Baixa?  @relation("EstornoDaBaixa")
 
   @@index([tituloId])
   @@index([data])
@@ -389,6 +397,12 @@ model Repasse {
   valor       Int
   previsao    DateTime
   efetivo     DateTime?
+
+  /// A baixa que marcou este repasse como recebido. Guardar o vínculo é o que
+  /// permite o estorno reabrir o repasse: sem ele, a baixa voltava atrás e o
+  /// repasse ficava "recebido" para sempre.
+  baixa       Baixa?    @relation(fields: [baixaId], references: [id])
+  baixaId     String?   @unique
 
   @@unique([vendaId, numero])
   @@map("repasses")
@@ -611,6 +625,18 @@ model MovimentoExtrato {
 
 /// Mês fechado trava: nenhum título ou baixa daquela competência muda mais.
 /// Para corrigir, estorna-se no mês aberto.
+/// Token de formulário já usado. Cada lançamento que cria dinheiro grava o
+/// token antes de gravar o resto, na mesma transação: clique duplo, F5 e
+/// reenvio por internet ruim chegam com o mesmo token e o segundo é recusado.
+model Idempotencia {
+  id       String   @id
+  acao     String
+  criadoEm DateTime @default(now())
+
+  @@index([criadoEm])
+  @@map("idempotencia")
+}
+
 model FechamentoMensal {
   id           String        @id @default(cuid())
   conta        ContaBancaria @relation(fields: [contaId], references: [id])

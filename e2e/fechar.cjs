@@ -20,12 +20,25 @@ const checa=(c,m)=>(c?ok:falhas).push(m);
   corpo = await p.textContent('main');
   checa(/Movimento conciliado/.test(corpo), 'conciliou o movimento sugerido');
 
-  await p.fill('#ext-texto', `05/11/2026;TESTE IMPORTACAO ${Date.now()};123,45\n05/11/2026;TESTE IMPORTACAO ${Date.now()};123,45\nlinha ruim`);
+  // Com o identificador do banco repetido, a segunda linha é repetição de
+  // verdade e é descartada; as duas linhas iguais sem identificador do bloco
+  // seguinte são dois lançamentos, e as duas têm de entrar.
+  const marca = Date.now();
+  await p.fill('#ext-texto', `05/11/2026;TESTE IMPORTACAO ${marca};123,45;E${marca}\n05/11/2026;TESTE IMPORTACAO ${marca};123,45;E${marca}\nlinha ruim`);
   await p.click('button:has-text("Importar")');
   await p.waitForTimeout(1500);
   corpo = await p.textContent('main');
-  checa(/1 movimentos importados/.test(corpo), 'importação ignorou a linha repetida');
+  checa(/1 movimentos importados/.test(corpo), 'importação descarta a linha com identificador repetido do banco');
   checa(/não foram lidas/.test(corpo), 'importação avisou da linha que não deu para ler');
+
+  await p.fill('#ext-texto', `06/11/2026;PIX GEMEO ${marca};77,00\n06/11/2026;PIX GEMEO ${marca};77,00`);
+  await p.click('button:has-text("Importar")');
+  await p.waitForTimeout(1500);
+  corpo = await p.textContent('main');
+  checa(
+    /2 movimentos importados/.test(corpo),
+    'dois lançamentos idênticos sem identificador do banco entram os dois'
+  );
 
   // fechar o mês e tentar lançar depois
   await p.goto(`${BASE}/banco?competencia=2026-11`, { waitUntil: 'networkidle' });

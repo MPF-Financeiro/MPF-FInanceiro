@@ -65,6 +65,13 @@ export type ResultadoCascata = {
   gateway: Centavos;
   /** O que de fato cai na conta. */
   liquido: Centavos;
+  /**
+   * Verdadeiro quando as taxas comem mais do que o aluno pagou. Acontece em
+   * venda muito pequena com taxa fixa, ou em taxa cadastrada errada. A conta
+   * continua sendo mostrada na tela, com o aviso; é a ação de gravar que
+   * recusa, porque título a receber negativo quebra baixa, saldo e relatório.
+   */
+  negativo: boolean;
 };
 
 /**
@@ -97,7 +104,7 @@ export function calcularCascata(entrada: EntradaCascata): ResultadoCascata {
   if (gateway > 0) linhas.push({ rotulo: "Taxa do Paga-me", valor: -gateway });
   linhas.push({ rotulo: "Líquido", valor: liquido, total: true });
 
-  return { linhas, pago, nota, gateway, liquido };
+  return { linhas, pago, nota, gateway, liquido, negativo: liquido < 0 };
 }
 
 /**
@@ -105,10 +112,7 @@ export function calcularCascata(entrada: EntradaCascata): ResultadoCascata {
  * própria. O resto da divisão fica na primeira parcela para que a soma das
  * parcelas seja exatamente o líquido — nunca um centavo a mais ou a menos.
  */
-export function dividirRepasses(
-  liquido: Centavos,
-  parcelas: number
-): Centavos[] {
+export function dividirRepasses(liquido: Centavos, parcelas: number): Centavos[] {
   if (!Number.isInteger(parcelas) || parcelas < 1) {
     throw new Error("parcelas tem de ser inteiro maior ou igual a 1");
   }
@@ -140,9 +144,9 @@ export function statusDoTitulo(args: {
   if (pendente <= 0) return "QUITADO";
   const hoje = args.hoje ?? new Date();
   const recebeuAlgo = pendente < args.valor;
-  const venceu = args.vencimento.getTime() < new Date(
-    hoje.getFullYear(), hoje.getMonth(), hoje.getDate()
-  ).getTime();
+  const venceu =
+    args.vencimento.getTime() <
+    new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
   if (venceu) return "VENCIDO";
   return recebeuAlgo ? "PARCIAL" : "ABERTO";
 }

@@ -26,6 +26,7 @@ import {
   textoOpcional,
 } from "@/lib/validacao";
 import { aviso, ehRedirect, falha, type Estado } from "@/lib/acoes/comum";
+import { registrarToken } from "@/lib/idempotencia";
 
 const opcional = (v: FormDataEntryValue | null) => {
   const s = String(v ?? "").trim();
@@ -42,7 +43,10 @@ const CATEGORIA_BENEFICIO: Record<TipoBeneficio, Categoria> = {
 };
 
 async function empresaPadrao(): Promise<string> {
-  const empresa = await db.empresa.findFirst({ where: { ativa: true }, orderBy: { nome: "asc" } });
+  const empresa = await db.empresa.findFirst({
+    where: { ativa: true },
+    orderBy: { nome: "asc" },
+  });
   if (!empresa) aviso("Cadastre uma empresa antes de gerar títulos.");
   return empresa.id;
 }
@@ -155,9 +159,10 @@ export async function salvarBeneficio(_estado: Estado, dados: FormData): Promise
 export async function gerarTitulosDeBeneficios(_estado: Estado, dados: FormData): Promise<Estado> {
   try {
     const sessao = await exigir(PAPEIS_RH);
-    const d = z
-      .object({ competencia: competenciaZ, vencimento: dataObrigatoria })
-      .parse({ competencia: dados.get("competencia"), vencimento: dados.get("vencimento") });
+    const d = z.object({ competencia: competenciaZ, vencimento: dataObrigatoria }).parse({
+      competencia: dados.get("competencia"),
+      vencimento: dados.get("vencimento"),
+    });
 
     await exigirMesAberto(d.competencia);
     const empresaId = await empresaPadrao();
@@ -171,7 +176,9 @@ export async function gerarTitulosDeBeneficios(_estado: Estado, dados: FormData)
     let atualizados = 0;
     for (const b of beneficios) {
       const existente = await db.titulo.findUnique({
-        where: { origem_origemId: { origem: Origem.BENEFICIO, origemId: b.id } },
+        where: {
+          origem_origemId: { origem: Origem.BENEFICIO, origemId: b.id },
+        },
         include: { baixas: true },
       });
       const base = {
@@ -190,7 +197,12 @@ export async function gerarTitulosDeBeneficios(_estado: Estado, dados: FormData)
         atualizados += 1;
       } else {
         await db.titulo.create({
-          data: { ...base, origem: Origem.BENEFICIO, origemId: b.id, criadoPorId: sessao.id },
+          data: {
+            ...base,
+            origem: Origem.BENEFICIO,
+            origemId: b.id,
+            criadoPorId: sessao.id,
+          },
         });
         criados += 1;
       }
@@ -217,13 +229,19 @@ export async function abrirFolha(_estado: Estado, dados: FormData): Promise<Esta
     });
     await exigirMesAberto(d.competencia);
 
-    const existente = await db.folha.findUnique({ where: { competencia: d.competencia } });
+    const existente = await db.folha.findUnique({
+      where: { competencia: d.competencia },
+    });
     if (existente) aviso("Já existe folha nessa competência.");
 
-    const ativos = await db.colaborador.findMany({ where: { status: StatusColaborador.ATIVO } });
+    const ativos = await db.colaborador.findMany({
+      where: { status: StatusColaborador.ATIVO },
+    });
     if (ativos.length === 0) aviso("Nenhum colaborador ativo para montar a folha.");
 
-    const beneficios = await db.beneficioMensal.findMany({ where: { competencia: d.competencia } });
+    const beneficios = await db.beneficioMensal.findMany({
+      where: { competencia: d.competencia },
+    });
     const bonificacoes = await db.bonificacao.findMany({
       where: { competencia: d.competencia, naFolha: true },
     });
@@ -248,7 +266,10 @@ export async function abrirFolha(_estado: Estado, dados: FormData): Promise<Esta
               bonificacoes: bonus,
               valeAlimentacao: va,
               valeTransporte: vt,
-              liquido: calcularItemFolha({ salarioBruto: c.salario, bonificacoes: bonus }).liquido,
+              liquido: calcularItemFolha({
+                salarioBruto: c.salario,
+                bonificacoes: bonus,
+              }).liquido,
             };
           }),
         },
@@ -269,7 +290,10 @@ export async function salvarItemFolha(_estado: Estado, dados: FormData): Promise
     const id = String(dados.get("id") ?? "");
     if (!id) aviso("Item da folha não informado.");
 
-    const item = await db.itemFolha.findUnique({ where: { id }, include: { folha: true } });
+    const item = await db.itemFolha.findUnique({
+      where: { id },
+      include: { folha: true },
+    });
     if (!item) aviso("Item da folha não encontrado.");
     if (item.folha.fechadaEm) aviso("Esta folha está fechada. Reabra antes de mudar valores.");
     await exigirMesAberto(item.folha.competencia);
@@ -311,7 +335,10 @@ export async function fecharFolha(_estado: Estado, dados: FormData): Promise<Est
   try {
     await exigir(PAPEIS_RH);
     const id = String(dados.get("id") ?? "");
-    const folha = await db.folha.findUnique({ where: { id }, include: { itens: true } });
+    const folha = await db.folha.findUnique({
+      where: { id },
+      include: { itens: true },
+    });
     if (!folha) aviso("Folha não encontrada.");
     if (folha.itens.length === 0) aviso("Folha sem itens.");
     await db.folha.update({
@@ -373,7 +400,12 @@ export async function enviarFolha(_estado: Estado, dados: FormData): Promise<Est
         atualizados += 1;
       } else {
         await db.titulo.create({
-          data: { ...base, origem: Origem.FOLHA, origemId: item.id, criadoPorId: sessao.id },
+          data: {
+            ...base,
+            origem: Origem.FOLHA,
+            origemId: item.id,
+            criadoPorId: sessao.id,
+          },
         });
         criados += 1;
       }
@@ -415,44 +447,89 @@ export async function salvarBonificacao(_estado: Estado, dados: FormData): Promi
       });
 
     await exigirMesAberto(d.competencia);
-    const bonificacao = await db.bonificacao.create({
-      data: {
-        colaboradorId: d.colaboradorId,
-        referencia: d.referencia,
-        valorConta: d.valorConta,
-        valor: d.valor,
-        competencia: d.competencia,
-        naFolha: d.naFolha,
-      },
-      include: { colaborador: true },
-    });
 
-    // Fora da folha, a bonificação é um título a pagar próprio. Dentro da
-    // folha, ela entra no item e sai no líquido: nunca nos dois.
-    if (!d.naFolha) {
-      await db.titulo.create({
-        data: {
-          empresaId: await empresaPadrao(),
-          direcao: Direcao.PAGAR,
-          categoria: Categoria.BONIFICACOES,
-          descricao: `Bonificação — ${bonificacao.colaborador.nome} (${d.referencia})`,
-          valor: d.valor,
-          competencia: d.competencia,
-          vencimento: vencimentoDaFolha(d.competencia),
-          colaboradorId: d.colaboradorId,
-          origem: Origem.BONIFICACAO,
-          origemId: bonificacao.id,
-          criadoPorId: sessao.id,
-        },
-      });
+    // Bonificação "na folha" só entra no líquido porque `abrirFolha` a soma ao
+    // montar os itens. Lançada depois que a folha já abriu, ela não entrava em
+    // lugar nenhum: nem no item, nem como título — a pessoa ficava sem receber.
+    const folha = await db.folha.findUnique({
+      where: { competencia: d.competencia },
+      include: { itens: { where: { colaboradorId: d.colaboradorId } } },
+    });
+    if (d.naFolha && folha?.fechadaEm) {
+      aviso(
+        'A folha desta competência já está fechada. Reabra a folha, ou desmarque "entra na folha" para a bonificação virar um título a pagar próprio.'
+      );
+    }
+    const itemDaFolha = d.naFolha ? (folha?.itens[0] ?? null) : null;
+    if (d.naFolha && folha && !itemDaFolha) {
+      aviso(
+        'A folha desta competência já abriu e este colaborador não está nela. Desmarque "entra na folha" para a bonificação virar um título a pagar próprio.'
+      );
     }
 
+    const token = opcional(dados.get("token"));
+    await db.$transaction(async (tx) => {
+      await registrarToken(tx, token, "salvarBonificacao");
+
+      const criada = await tx.bonificacao.create({
+        data: {
+          colaboradorId: d.colaboradorId,
+          referencia: d.referencia,
+          valorConta: d.valorConta,
+          valor: d.valor,
+          competencia: d.competencia,
+          naFolha: d.naFolha,
+        },
+        include: { colaborador: true },
+      });
+
+      // Fora da folha, a bonificação é um título a pagar próprio. Dentro da
+      // folha, ela entra no item e sai no líquido: nunca nos dois.
+      if (!d.naFolha) {
+        await tx.titulo.create({
+          data: {
+            empresaId: await empresaPadrao(),
+            direcao: Direcao.PAGAR,
+            categoria: Categoria.BONIFICACOES,
+            descricao: `Bonificação — ${criada.colaborador.nome} (${d.referencia})`,
+            valor: d.valor,
+            competencia: d.competencia,
+            vencimento: vencimentoDaFolha(d.competencia),
+            colaboradorId: d.colaboradorId,
+            origem: Origem.BONIFICACAO,
+            origemId: criada.id,
+            criadoPorId: sessao.id,
+          },
+        });
+      } else if (itemDaFolha) {
+        // Folha já aberta: a bonificação entra no item que existe, e o líquido
+        // é recalculado na hora, pela mesma conta de `abrirFolha`.
+        const bonificacoes = itemDaFolha.bonificacoes + d.valor;
+        const conta = calcularItemFolha({
+          salarioBruto: itemDaFolha.salarioBruto,
+          bonificacoes,
+          horasExtras: itemDaFolha.horasExtras,
+          adiantamentos: itemDaFolha.adiantamentos,
+          inss: itemDaFolha.inss,
+          irrf: itemDaFolha.irrf,
+          outrosDescontos: itemDaFolha.outrosDescontos,
+        });
+        await tx.itemFolha.update({
+          where: { id: itemDaFolha.id },
+          data: { bonificacoes, liquido: conta.liquido },
+        });
+      }
+    });
+
     revalidatePath("/rh");
+    revalidatePath("/rh/folha");
     revalidatePath("/pagar");
     return {
       erro: null,
       ok: d.naFolha
-        ? "Bonificação registrada: entra no líquido da folha desta competência."
+        ? itemDaFolha
+          ? "Bonificação registrada e somada ao item desta pessoa na folha aberta."
+          : "Bonificação registrada: entra no líquido da folha desta competência."
         : "Bonificação registrada e título a pagar criado.",
     };
   } catch (e) {
@@ -709,7 +786,9 @@ export async function salvarRescisao(_estado: Estado, dados: FormData): Promise<
         homologada: dados.get("homologada") === "on" || dados.get("homologada") === "true",
       });
 
-    const colaborador = await db.colaborador.findUnique({ where: { id: d.colaboradorId } });
+    const colaborador = await db.colaborador.findUnique({
+      where: { id: d.colaboradorId },
+    });
     if (!colaborador) aviso("Colaborador não encontrado.");
     await exigirMesAberto(d.dataDesligamento);
 
@@ -736,12 +815,17 @@ export async function salvarRescisao(_estado: Estado, dados: FormData): Promise<
 
     await db.colaborador.update({
       where: { id: d.colaboradorId },
-      data: { status: StatusColaborador.DESLIGADO, desligamento: d.dataDesligamento },
+      data: {
+        status: StatusColaborador.DESLIGADO,
+        desligamento: d.dataDesligamento,
+      },
     });
 
     if (d.valorTotal > 0) {
       const existente = await db.titulo.findUnique({
-        where: { origem_origemId: { origem: Origem.ACERTO, origemId: rescisao.id } },
+        where: {
+          origem_origemId: { origem: Origem.ACERTO, origemId: rescisao.id },
+        },
         include: { baixas: true },
       });
       const base = {
@@ -760,7 +844,12 @@ export async function salvarRescisao(_estado: Estado, dados: FormData): Promise<
         }
       } else {
         await db.titulo.create({
-          data: { ...base, origem: Origem.ACERTO, origemId: rescisao.id, criadoPorId: sessao.id },
+          data: {
+            ...base,
+            origem: Origem.ACERTO,
+            origemId: rescisao.id,
+            criadoPorId: sessao.id,
+          },
         });
       }
     }

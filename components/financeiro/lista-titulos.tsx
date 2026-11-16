@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ChipStatus } from "@/components/financeiro/chip";
 import { Numero } from "@/components/financeiro/pagina";
-import { Tabela, Td, Th } from "@/components/financeiro/tabela";
+import { AcaoDaLinha, Tabela, Td, Th } from "@/components/financeiro/tabela";
 
 const STATUS_FILTRO = [
   { valor: "TODOS", rotulo: "Todos os status" },
@@ -168,12 +168,9 @@ export function ListaTitulos({
                     />
                   </Td>
                   <Td>
-                    <Link
-                      href={`${base}/${t.id}`}
-                      className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                    >
+                    <AcaoDaLinha href={`${base}/${t.id}`} oQue={t.descricao}>
                       Abrir
-                    </Link>
+                    </AcaoDaLinha>
                   </Td>
                 </tr>
               ))}

@@ -6,14 +6,9 @@ import { Categoria, Direcao, FormaPagamento, Origem, StatusVoucher } from "@pris
 import { db } from "@/lib/db";
 import { exigir, PAPEIS_ADMIN, PAPEIS_FINANCEIRO } from "@/lib/permissoes";
 import { exigirMesAberto } from "@/lib/fechamento";
-import { inicioDoMes } from "@/lib/mes";
+import { inicioDoMes, somarMeses } from "@/lib/mes";
 import { dividirRepasses } from "@/lib/money";
-import {
-  dataObrigatoria,
-  dataOpcional,
-  dinheiroPositivo,
-  textoOpcional,
-} from "@/lib/validacao";
+import { dataObrigatoria, dataOpcional, dinheiroPositivo, textoOpcional } from "@/lib/validacao";
 import { aviso, ehRedirect, falha, type Estado } from "@/lib/acoes/comum";
 
 const opcional = (v: FormDataEntryValue | null) => {
@@ -51,7 +46,9 @@ export async function salvarEmpresa(_estado: Estado, dados: FormData): Promise<E
     } else {
       const existe = await db.empresa.findUnique({ where: { cnpj: d.cnpj } });
       if (existe) aviso("Já existe empresa com esse CNPJ.");
-      await db.empresa.create({ data: { nome: d.nome, cnpj: d.cnpj, ativa: d.ativa } });
+      await db.empresa.create({
+        data: { nome: d.nome, cnpj: d.cnpj, ativa: d.ativa },
+      });
     }
     revalidatePath("/cadastros");
     return { erro: null, ok: "Empresa salva." };
@@ -246,7 +243,10 @@ export async function gerarTitulosDoContrato(_estado: Estado, dados: FormData): 
   try {
     const sessao = await exigir(PAPEIS_FINANCEIRO);
     const d = z
-      .object({ contratoId: z.string().min(1), primeiroVencimento: dataObrigatoria })
+      .object({
+        contratoId: z.string().min(1),
+        primeiroVencimento: dataObrigatoria,
+      })
       .parse({
         contratoId: dados.get("contratoId"),
         primeiroVencimento: dados.get("primeiroVencimento"),
@@ -264,13 +264,7 @@ export async function gerarTitulosDoContrato(_estado: Estado, dados: FormData): 
     let atualizados = 0;
 
     for (const [i, valor] of fatias.entries()) {
-      const vencimento = new Date(
-        Date.UTC(
-          d.primeiroVencimento.getUTCFullYear(),
-          d.primeiroVencimento.getUTCMonth() + i,
-          d.primeiroVencimento.getUTCDate()
-        )
-      );
+      const vencimento = somarMeses(d.primeiroVencimento, i);
       const origemId = `${contrato.id}-${i + 1}`;
       const existente = await db.titulo.findUnique({
         where: { origem_origemId: { origem: Origem.CONTRATO, origemId } },
@@ -377,7 +371,11 @@ export async function marcarVoucherUtilizado(_estado: Estado, dados: FormData): 
   try {
     const sessao = await exigir(PAPEIS_FINANCEIRO);
     const d = z
-      .object({ id: z.string().min(1), utilizacao: dataObrigatoria, empresaId: z.string().min(1) })
+      .object({
+        id: z.string().min(1),
+        utilizacao: dataObrigatoria,
+        empresaId: z.string().min(1),
+      })
       .parse({
         id: dados.get("id"),
         utilizacao: dados.get("utilizacao"),
@@ -409,7 +407,11 @@ export async function marcarVoucherUtilizado(_estado: Estado, dados: FormData): 
       });
       await tx.voucher.update({
         where: { id: voucher.id },
-        data: { utilizacao: d.utilizacao, status: StatusVoucher.UTILIZADO, tituloId: titulo.id },
+        data: {
+          utilizacao: d.utilizacao,
+          status: StatusVoucher.UTILIZADO,
+          tituloId: titulo.id,
+        },
       });
     });
 
@@ -429,14 +431,26 @@ export async function cancelarVoucher(_estado: Estado, dados: FormData): Promise
   try {
     await exigir(PAPEIS_FINANCEIRO);
     const d = z
-      .object({ id: z.string().min(1), motivo: z.string().trim().min(5, "Escreva o motivo") })
+      .object({
+        id: z.string().min(1),
+        motivo: z.string().trim().min(5, "Escreva o motivo"),
+      })
       .parse({ id: dados.get("id"), motivo: dados.get("motivo") });
 
-    const voucher = await db.voucher.findUnique({ where: { id: d.id }, include: { titulo: { include: { baixas: true } } } });
+    const voucher = await db.voucher.findUnique({
+      where: { id: d.id },
+      include: { titulo: { include: { baixas: true } } },
+    });
     if (!voucher) aviso("Voucher não encontrado.");
-    if (voucher.titulo?.baixas.length) {
+    if (voucher.status === StatusVoucher.CANCELADO) aviso("Este voucher já está cancelado.");
+    // Soma, não quantidade: baixa já estornada soma zero, e aí o cancelamento
+    // pode seguir — que é justamente o que a mensagem antiga mandava fazer.
+    const movimentado = (voucher.titulo?.baixas ?? []).reduce((a, b) => a + b.valor, 0);
+    if (movimentado !== 0) {
       aviso("O repasse deste voucher já foi recebido. Estorne a baixa antes de cancelar.");
     }
+    // Cancelar carimba o título; mês fechado não aceita mexida na competência.
+    if (voucher.titulo) await exigirMesAberto(voucher.titulo.competencia);
 
     await db.$transaction(async (tx) => {
       await tx.voucher.update({

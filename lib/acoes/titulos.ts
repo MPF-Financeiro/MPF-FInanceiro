@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { Categoria, Direcao, FormaPagamento, Origem } from "@prisma/client";
+import { Categoria, Direcao, FormaPagamento, Origem, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigir, PAPEIS_FINANCEIRO } from "@/lib/permissoes";
 import { exigirMesAberto } from "@/lib/fechamento";
-import { inicioDoMes } from "@/lib/mes";
+import { inicioDoMes, somarMeses } from "@/lib/mes";
 import { dividirRepasses, saldo } from "@/lib/money";
 import {
   competencia as competenciaZ,
@@ -16,6 +16,7 @@ import {
   textoOpcional,
 } from "@/lib/validacao";
 import { aviso, ehRedirect, falha, type Estado } from "@/lib/acoes/comum";
+import { registrarToken } from "@/lib/idempotencia";
 
 const vazioParaNulo = (v: FormDataEntryValue | null) => {
   const s = String(v ?? "").trim();
@@ -38,10 +39,6 @@ const esquemaTitulo = z.object({
   colaboradorId: z.string().optional(),
   observacoes: textoOpcional,
 });
-
-function somarMeses(d: Date, n: number): Date {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, d.getUTCDate()));
-}
 
 /**
  * Lança uma conta a receber ou a pagar. Parcelado gera um título por parcela,
@@ -74,25 +71,28 @@ export async function lancarTitulo(_estado: Estado, dados: FormData): Promise<Es
     }
 
     const valores = dividirRepasses(d.valor, d.parcelas);
-    await db.titulo.createMany({
-      data: valores.map((valor, i) => ({
-        empresaId: d.empresaId,
-        direcao: d.direcao,
-        categoria: d.categoria,
-        descricao:
-          d.parcelas > 1 ? `${d.descricao} (${i + 1}/${d.parcelas})` : d.descricao,
-        valor,
-        competencia: inicioDoMes(somarMeses(d.competencia, i)),
-        vencimento: somarMeses(d.vencimento, i),
-        forma: d.forma ?? null,
-        clienteId: d.clienteId ?? null,
-        fornecedorId: d.fornecedorId ?? null,
-        contratoId: d.contratoId ?? null,
-        colaboradorId: d.colaboradorId ?? null,
-        observacoes: d.observacoes,
-        origem: Origem.MANUAL,
-        criadoPorId: sessao.id,
-      })),
+    const token = vazioParaNulo(dados.get("token"));
+    await db.$transaction(async (tx) => {
+      await registrarToken(tx, token, "lancarTitulo");
+      await tx.titulo.createMany({
+        data: valores.map((valor, i) => ({
+          empresaId: d.empresaId,
+          direcao: d.direcao,
+          categoria: d.categoria,
+          descricao: d.parcelas > 1 ? `${d.descricao} (${i + 1}/${d.parcelas})` : d.descricao,
+          valor,
+          competencia: inicioDoMes(somarMeses(d.competencia, i)),
+          vencimento: somarMeses(d.vencimento, i),
+          forma: d.forma ?? null,
+          clienteId: d.clienteId ?? null,
+          fornecedorId: d.fornecedorId ?? null,
+          contratoId: d.contratoId ?? null,
+          colaboradorId: d.colaboradorId ?? null,
+          observacoes: d.observacoes,
+          origem: Origem.MANUAL,
+          criadoPorId: sessao.id,
+        })),
+      });
     });
 
     const destino = d.direcao === Direcao.RECEBER ? "/receber" : "/pagar";
@@ -130,36 +130,48 @@ export async function darBaixa(_estado: Estado, dados: FormData): Promise<Estado
       comprovante: String(dados.get("comprovante") ?? ""),
     });
 
-    const titulo = await db.titulo.findUnique({
-      where: { id: d.tituloId },
-      include: { baixas: true },
-    });
+    const titulo = await db.titulo.findUnique({ where: { id: d.tituloId } });
     if (!titulo) aviso("Título não encontrado.");
     if (titulo.canceladoEm) aviso("Este título está cancelado. Não dá para dar baixa nele.");
 
     await exigirMesAberto(titulo.competencia);
     await exigirMesAberto(d.data);
 
-    const pendente = saldo(titulo.valor, titulo.baixas.map((b) => b.valor));
-    if (d.valor > pendente) {
-      aviso(
-        `O valor é maior que o pendente. Faltam ${(pendente / 100).toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        })}. Se recebeu a mais, lance o excedente como outro título.`
-      );
-    }
+    // A conferência do pendente e a gravação da baixa vão na mesma transação,
+    // com o título travado no banco. Sem a trava, duas pessoas dando baixa do
+    // mesmo título no mesmo segundo leem o mesmo pendente e passam as duas —
+    // e o título fica recebido duas vezes.
+    await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM titulos WHERE id = ${titulo.id} FOR UPDATE`;
 
-    await db.baixa.create({
-      data: {
-        tituloId: titulo.id,
-        valor: d.valor,
-        data: d.data,
-        forma: d.forma,
-        contaId: d.contaId ?? null,
-        comprovante: d.comprovante,
-        registradoPorId: sessao.id,
-      },
+      const baixas = await tx.baixa.findMany({
+        where: { tituloId: titulo.id },
+        select: { valor: true },
+      });
+      const pendente = saldo(
+        titulo.valor,
+        baixas.map((b) => b.valor)
+      );
+      if (d.valor > pendente) {
+        aviso(
+          `O valor é maior que o pendente. Faltam ${(pendente / 100).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+          })}. Se recebeu a mais, lance o excedente como outro título.`
+        );
+      }
+
+      await tx.baixa.create({
+        data: {
+          tituloId: titulo.id,
+          valor: d.valor,
+          data: d.data,
+          forma: d.forma,
+          contaId: d.contaId ?? null,
+          comprovante: d.comprovante,
+          registradoPorId: sessao.id,
+        },
+      });
     });
 
     const destino = titulo.direcao === Direcao.RECEBER ? "/receber" : "/pagar";
@@ -194,29 +206,58 @@ export async function estornarBaixa(_estado: Estado, dados: FormData): Promise<E
 
     const baixa = await db.baixa.findUnique({
       where: { id: d.baixaId },
-      include: { titulo: true },
+      include: { titulo: true, estornadaPor: true, repasse: true },
     });
     if (!baixa) aviso("Baixa não encontrada.");
     if (baixa.valor < 0) aviso("Esta linha já é um estorno.");
+    if (baixa.estornadaPor) aviso("Esta baixa já foi estornada.");
     await exigirMesAberto(d.data);
 
-    await db.baixa.create({
-      data: {
-        tituloId: baixa.tituloId,
-        valor: -baixa.valor,
-        data: d.data,
-        forma: baixa.forma,
-        contaId: baixa.contaId,
-        motivo: d.motivo,
-        registradoPorId: sessao.id,
-      },
-    });
+    // `estornoDeId` é único: quem clicar duas vezes no botão perde a corrida no
+    // próprio banco, não numa conferência que pode ler o estado antigo.
+    try {
+      await db.$transaction(async (tx) => {
+        await tx.baixa.create({
+          data: {
+            tituloId: baixa.tituloId,
+            valor: -baixa.valor,
+            data: d.data,
+            forma: baixa.forma,
+            contaId: baixa.contaId,
+            motivo: d.motivo,
+            estornoDeId: baixa.id,
+            registradoPorId: sessao.id,
+          },
+        });
+
+        // Se a baixa veio de um repasse de cartão, o estorno devolve o repasse
+        // para a lista do que ainda não caiu. Sem isso, a venda ficava com o
+        // dinheiro estornado e o repasse marcado como recebido.
+        if (baixa.repasse) {
+          await tx.repasse.update({
+            where: { id: baixa.repasse.id },
+            data: { efetivo: null, baixaId: null },
+          });
+        }
+      });
+    } catch (erro) {
+      if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2002") {
+        aviso("Esta baixa já foi estornada.");
+      }
+      throw erro;
+    }
 
     const destino = baixa.titulo.direcao === Direcao.RECEBER ? "/receber" : "/pagar";
     revalidatePath(destino);
     revalidatePath(`${destino}/${baixa.tituloId}`);
+    if (baixa.repasse) revalidatePath("/vendas");
     revalidatePath("/");
-    return { erro: null, ok: "Estorno registrado no histórico." };
+    return {
+      erro: null,
+      ok: baixa.repasse
+        ? "Estorno registrado e repasse devolvido para a lista do que ainda não caiu."
+        : "Estorno registrado no histórico.",
+    };
   } catch (e) {
     if (ehRedirect(e)) throw e;
     return falha(e);

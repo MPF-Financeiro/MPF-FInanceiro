@@ -298,7 +298,7 @@ export function Fechamento({
                 <Campo
                   rotulo="Saldo final do extrato"
                   htmlFor="fec-extrato"
-                  dica="Opcional, para conferir."
+                  opcional dica="Para conferir."
                 >
                   <Input
                     id="fec-extrato"

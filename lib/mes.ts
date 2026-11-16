@@ -45,3 +45,16 @@ export function hojeUTC(): Date {
   const agora = new Date();
   return new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()));
 }
+
+/**
+ * Soma meses mantendo o dia dentro do mês de destino. Sem o corte, 31/01 + 1
+ * mês vira 03/03 ("31 de fevereiro" transborda), e uma parcela aparece no mês
+ * errado do relatório. Com o corte, vira 28/02 — que é o que a cliente
+ * escreveria à mão no boleto.
+ */
+export function somarMeses(d: Date, n: number): Date {
+  const ano = d.getUTCFullYear();
+  const mes = d.getUTCMonth() + n;
+  const ultimoDia = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(ano, mes, Math.min(d.getUTCDate(), ultimoDia)));
+}
