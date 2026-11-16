@@ -22,7 +22,7 @@ export function Th({
   numero,
   className,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   numero?: boolean;
   className?: string;
 }) {

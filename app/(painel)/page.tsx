@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Direcao } from "@prisma/client";
-import { listarTitulos, resumoDoPainel } from "@/lib/consultas";
+import { alertas, listarTitulos, resumoDoPainel } from "@/lib/consultas";
+import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/money";
 import { competenciaLonga, dataCurta } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,9 +13,10 @@ export const dynamic = "force-dynamic";
 
 export default async function PainelPage() {
   const hoje = new Date();
-  const [resumo, receber] = await Promise.all([
+  const [resumo, receber, avisos] = await Promise.all([
     resumoDoPainel(hoje),
     listarTitulos(Direcao.RECEBER),
+    alertas(hoje),
   ]);
 
   const proximos = receber
@@ -27,6 +29,34 @@ export default async function PainelPage() {
         titulo="Painel Financeiro"
         descricao={`Competência de ${competenciaLonga(hoje)}. "A receber" é saldo em aberto; "recebido" é dinheiro que bateu na conta.`}
       />
+
+      {avisos.length > 0 ? (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Precisa de atenção</CardTitle>
+          </CardHeader>
+          <CardBody>
+            <ul className="space-y-2.5">
+              {avisos.map((a) => (
+                <li key={a.href + a.texto} className="flex items-start gap-2.5 text-sm">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "mt-1.5 size-2 shrink-0 rounded-full",
+                      a.tom === "ruim" && "bg-destructive",
+                      a.tom === "atencao" && "bg-[hsl(var(--warning))]",
+                      a.tom === "neutro" && "bg-muted-foreground/50"
+                    )}
+                  />
+                  <Link href={a.href} className="underline-offset-4 hover:underline">
+                    {a.texto}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Numero rotulo="A receber" valor={resumo.aReceber} nota="saldo em aberto, todas as competências" />
@@ -51,7 +81,7 @@ export default async function PainelPage() {
           <CardBody>
             {proximos.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Nada em aberto. Rode o seed para ver a tela com dados.
+                Nada em aberto no momento.
               </p>
             ) : (
               <Tabela minWidth={620}>

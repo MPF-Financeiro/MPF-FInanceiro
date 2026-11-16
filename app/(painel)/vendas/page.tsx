@@ -1,4 +1,9 @@
-import { listarVendas } from "@/lib/consultas";
+import Link from "next/link";
+import { listarVendas, opcoesDeLancamento, repassesPendentes } from "@/lib/consultas";
+import { podeLancar, sessaoAtual } from "@/lib/permissoes";
+import { hojeUTC, paraInputDate } from "@/lib/mes";
+import { Button } from "@/components/ui/button";
+import { Repasses } from "@/components/financeiro/repasses";
 import { formatBRL, type LinhaCascata } from "@/lib/money";
 import { competenciaLonga, dataCurta } from "@/lib/utils";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +15,12 @@ export const dynamic = "force-dynamic";
 
 export default async function VendasPage() {
   const hoje = new Date();
-  const vendas = await listarVendas(hoje);
+  const [sessao, vendas, repasses, opcoes] = await Promise.all([
+    sessaoAtual(),
+    listarVendas(hoje),
+    repassesPendentes(),
+    opcoesDeLancamento(),
+  ]);
   const pix = vendas.filter((v) => v.meio === "PIX");
   const cartao = vendas.filter((v) => v.meio === "CARTAO");
 
@@ -44,6 +54,21 @@ export default async function VendasPage() {
       <Cabecalho
         titulo="Vendas do site do Giovanni Pacelli"
         descricao={`${competenciaLonga(hoje)}. Cada venda guarda a própria conta: tabela, cupom, 10% da nota e taxa do Paga-me. A taxa fica congelada no momento da venda, então venda antiga continua batendo.`}
+        acao={
+          sessao && podeLancar(sessao.papel) ? (
+            <div className="flex flex-wrap gap-3">
+              <Button asChild variant="outline">
+                <a href="/financeiro/api/exportar/vendas">Exportar CSV</a>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/cursos">Cursos e taxas</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/vendas/nova">Lançar venda</Link>
+              </Button>
+            </div>
+          ) : null
+        }
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -153,6 +178,13 @@ export default async function VendasPage() {
           </CardBody>
         </Card>
 
+        <Repasses
+          repasses={repasses}
+          contas={opcoes.contas}
+          hoje={paraInputDate(hojeUTC())}
+          podeEscrever={Boolean(sessao && podeLancar(sessao.papel))}
+        />
+
         {exemplo ? (
           <div className="grid gap-6 lg:grid-cols-2">
             <Cascata
@@ -161,18 +193,20 @@ export default async function VendasPage() {
             />
             <Card>
               <CardHeader>
-                <CardTitle>O que falta confirmar com a cliente</CardTitle>
+                <CardTitle>De onde vêm esses números</CardTitle>
               </CardHeader>
               <CardBody className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  As telas usam o <strong className="text-foreground">cadastro de curso</strong>:
-                  cada curso tem preço de tabela e cupom, e o sistema calcula o desconto, os 10% da
-                  nota e a taxa. A alternativa é digitar o valor pago em cada venda e só abater nota
-                  e taxa.
+                  Os cursos e os cupons são cadastrados em{" "}
+                  <Link href="/cursos" className="text-primary underline-offset-4 hover:underline">
+                    Cursos e taxas
+                  </Link>
+                  : o sistema calcula o desconto, os 10% da nota e a taxa do meio de pagamento.
                 </p>
                 <p>
-                  As taxas do Paga-me aqui são exemplo (1% no PIX, 4,5% no cartão). Elas ficam numa
-                  configuração com data de início, então trocar a taxa não muda venda antiga.
+                  As taxas do Paga-me aqui são provisórias (1% no PIX, 4,5% no cartão) até a
+                  cliente confirmar as reais. Cada vigência tem data de início, então trocar a taxa
+                  não muda venda antiga.
                 </p>
               </CardBody>
             </Card>

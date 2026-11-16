@@ -1,6 +1,7 @@
 "use server";
 
 import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
 
 export type EstadoLogin = { erro: string | null };
@@ -16,22 +17,48 @@ export async function entrar(
 ): Promise<EstadoLogin> {
   const email = String(dados.get("email") ?? "").trim().toLowerCase();
   const senha = String(dados.get("password") ?? "");
-  // Com basePath, o redirect do next-auth não prefixa sozinho: o destino
-  // tem de vir completo, senão a pessoa cai na raiz do SampsOS.
-  const destino = String(dados.get("callbackUrl") ?? "") || "/financeiro";
+  /**
+   * O destino é um caminho de dentro do app, SEM o basePath: quem põe o
+   * prefixo é o `redirect()` do Next. O `redirect` do próprio next-auth não
+   * serve aqui, porque ele monta a URL a partir da config com basePath e o
+   * router acaba pedindo /financeiro/financeiro, que é 404.
+   */
+  const bruto = String(dados.get("callbackUrl") ?? "");
+  const destino = caminhoInterno(bruto);
 
   if (!email || !senha) return { erro: "Preencha e-mail e senha para continuar." };
 
   try {
-    await signIn("credentials", { email, password: senha, redirectTo: destino });
+    await signIn("credentials", { email, password: senha, redirect: false });
   } catch (e) {
     if (e instanceof AuthError) {
       return {
         erro: "Não foi possível entrar. Confira o e-mail e a senha, ou se a conta está ativa.",
       };
     }
-    // O redirect de sucesso é lançado como erro pelo Next: tem de subir.
     throw e;
   }
-  return { erro: null };
+
+  // Fora do try: o redirect é lançado como exceção e não pode ser confundido
+  // com falha de login.
+  redirect(destino);
+}
+
+/**
+ * Transforma o callbackUrl em um caminho interno seguro. Só caminho do próprio
+ * app entra: URL de outro site viraria redirecionamento aberto.
+ */
+function caminhoInterno(bruto: string): string {
+  if (!bruto) return "/";
+  let caminho = bruto;
+  if (/^https?:\/\//i.test(bruto)) {
+    try {
+      caminho = new URL(bruto).pathname;
+    } catch {
+      return "/";
+    }
+  }
+  if (!caminho.startsWith("/") || caminho.startsWith("//")) return "/";
+  caminho = caminho.replace(/^\/financeiro/, "");
+  return caminho || "/";
 }

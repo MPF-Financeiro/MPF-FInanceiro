@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:usuario": "tsx prisma/criar-usuario.ts"
+    "db:usuario": "tsx prisma/criar-usuario.ts",
+    "test:e2e": "node e2e/navegacao.cjs && node e2e/fluxo.cjs && node e2e/fechar.cjs && node e2e/papeis.cjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

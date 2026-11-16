@@ -5,9 +5,22 @@
  * Alunos, colaboradores e valores são FICTÍCIOS. Nenhum dado real de pessoa
  * entra aqui: quando o sistema for usado de verdade, isto não roda em produção.
  */
-import { Categoria, Direcao, FormaPagamento, MeioVenda, Origem, PapelUsuario, PrismaClient } from "@prisma/client";
+import {
+  Categoria,
+  Direcao,
+  FormaPagamento,
+  MeioVenda,
+  Origem,
+  PapelUsuario,
+  PrismaClient,
+  StatusColaborador,
+  StatusFerias,
+  TipoBeneficio,
+  TipoExame,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { calcularCascata, dividirRepasses, reais } from "../lib/money";
+import { calcularItemFolha } from "../lib/folha";
 
 const db = new PrismaClient();
 
@@ -23,6 +36,19 @@ const competencia = d(ANO, MES, 1);
 
 async function main() {
   await db.$transaction([
+    db.movimentoExtrato.deleteMany(),
+    db.fechamentoMensal.deleteMany(),
+    db.acessoDocumento.deleteMany(),
+    db.documentoRH.deleteMany(),
+    db.contracheque.deleteMany(),
+    db.exameOcupacional.deleteMany(),
+    db.ferias.deleteMany(),
+    db.rescisao.deleteMany(),
+    db.itemFolha.deleteMany(),
+    db.folha.deleteMany(),
+    db.bonificacao.deleteMany(),
+    db.beneficioMensal.deleteMany(),
+    db.voucher.deleteMany(),
     db.repasse.deleteMany(),
     db.vendaSite.deleteMany(),
     db.baixa.deleteMany(),
@@ -35,6 +61,7 @@ async function main() {
     db.contaBancaria.deleteMany(),
     db.empresa.deleteMany(),
     db.configTaxa.deleteMany(),
+    db.colaborador.deleteMany(),
     db.usuario.deleteMany(),
   ]);
 
@@ -43,6 +70,8 @@ async function main() {
     data: [
       { email: "admin@sampsdigital.com", nome: "Sócio", senhaHash, papel: PapelUsuario.ADMIN },
       { email: "financeiro@sampsdigital.com", nome: "Financeiro", senhaHash, papel: PapelUsuario.FINANCEIRO },
+      { email: "rh@sampsdigital.com", nome: "RH", senhaHash, papel: PapelUsuario.RH },
+      { email: "leitura@sampsdigital.com", nome: "Leitura", senhaHash, papel: PapelUsuario.LEITURA },
     ],
   });
 
@@ -223,6 +252,165 @@ async function main() {
       }
     }
   }
+
+  // ─────────────────────────────────────────────────── RH de exemplo
+  //
+  // Pessoas e valores fictícios. Serve para as telas de RH mostrarem como
+  // ficam cheias; não roda em produção.
+  const equipe = [
+    { nome: "Equipe Exemplo 1", cargo: "Social media", setor: "Criação", salario: reais(2400) },
+    { nome: "Equipe Exemplo 2", cargo: "Designer", setor: "Criação", salario: reais(3100) },
+    { nome: "Equipe Exemplo 3", cargo: "Gestor de tráfego", setor: "Mídia", salario: reais(3800) },
+  ];
+  const colaboradores = [];
+  for (const [i, pessoa] of equipe.entries()) {
+    colaboradores.push(
+      await db.colaborador.create({
+        data: {
+          ...pessoa,
+          admissao: d(ANO - 2 + i, 3, 10),
+          status: StatusColaborador.ATIVO,
+          email: `exemplo${i + 1}@sampsdigital.com`,
+        },
+      })
+    );
+  }
+
+  for (const colaborador of colaboradores) {
+    await db.beneficioMensal.createMany({
+      data: [
+        {
+          colaboradorId: colaborador.id,
+          tipo: TipoBeneficio.VALE_ALIMENTACAO,
+          competencia,
+          previsto: reais(600),
+        },
+        {
+          colaboradorId: colaborador.id,
+          tipo: TipoBeneficio.VALE_TRANSPORTE,
+          competencia,
+          previsto: reais(220),
+        },
+      ],
+    });
+  }
+
+  await db.bonificacao.create({
+    data: {
+      colaboradorId: colaboradores[0].id,
+      referencia: "Clínica Oceano",
+      valorConta: reais(3200),
+      valor: reais(320),
+      competencia,
+      naFolha: true,
+    },
+  });
+
+  const folha = await db.folha.create({ data: { competencia } });
+  for (const colaborador of colaboradores) {
+    const bonus = colaborador.id === colaboradores[0].id ? reais(320) : 0;
+    const inss = Math.round(colaborador.salario * 0.09);
+    const conta = calcularItemFolha({
+      salarioBruto: colaborador.salario,
+      bonificacoes: bonus,
+      inss,
+    });
+    await db.itemFolha.create({
+      data: {
+        folhaId: folha.id,
+        colaboradorId: colaborador.id,
+        salarioBruto: colaborador.salario,
+        bonificacoes: bonus,
+        inss,
+        valeAlimentacao: reais(600),
+        valeTransporte: reais(220),
+        liquido: conta.liquido,
+      },
+    });
+  }
+
+  await db.ferias.create({
+    data: {
+      colaboradorId: colaboradores[1].id,
+      periodoAquisitivoInicio: d(ANO - 1, 3, 10),
+      periodoAquisitivoFim: d(ANO, 3, 9),
+      inicio: d(ANO, MES + 1, 5),
+      fim: d(ANO, MES + 1, 24),
+      diasVendidos: 10,
+      abonoPecuniario: true,
+      status: StatusFerias.PROGRAMADA,
+    },
+  });
+
+  await db.exameOcupacional.createMany({
+    data: colaboradores.map((c, i) => ({
+      colaboradorId: c.id,
+      tipo: i === 0 ? TipoExame.PERIODICO : TipoExame.ADMISSIONAL,
+      realizado: d(ANO - 1, 11, 10 + i),
+      proximo: d(ANO, MES, 25),
+      clinica: "Clínica exemplo",
+      apto: true,
+      laudo: "laudo-exemplo.pdf",
+      custo: reais(120),
+    })),
+  });
+
+  await db.documentoRH.create({
+    data: {
+      colaboradorId: colaboradores[0].id,
+      tipo: "Contrato de trabalho",
+      arquivo: "contrato-exemplo.pdf",
+      emitidoEm: d(ANO - 2, 3, 10),
+      restrito: true,
+    },
+  });
+
+  await db.contracheque.create({
+    data: {
+      colaboradorId: colaboradores[0].id,
+      competencia,
+      arquivo: "contracheque-exemplo.pdf",
+      disponibilizadoEm: hoje,
+    },
+  });
+
+  // Voucher e extrato, para as telas de voucher e de conciliação não nascerem vazias.
+  await db.voucher.create({
+    data: {
+      emissor: "Sebrae exemplo",
+      codigo: "VCH-0001",
+      valor: reais(1500),
+      emissao: d(ANO, MES, 3),
+      repassePrevisto: d(ANO, MES + 1, 10),
+      clienteId: null,
+    },
+  });
+
+  await db.movimentoExtrato.createMany({
+    data: [
+      {
+        contaId: conta.id,
+        data: d(ANO, MES, 5),
+        descricao: "PIX RECEBIDO CLINICA OCEANO",
+        valor: reais(3200),
+        fitid: "EX-0001",
+      },
+      {
+        contaId: conta.id,
+        data: d(ANO, MES, 7),
+        descricao: "ALUGUEL SALA",
+        valor: -reais(2000),
+        fitid: "EX-0002",
+      },
+      {
+        contaId: conta.id,
+        data: d(ANO, MES, 9),
+        descricao: "TARIFA PACOTE SERVICOS",
+        valor: -reais(79),
+        fitid: "EX-0003",
+      },
+    ],
+  });
 
   console.log("Seed pronto. Entre com admin@sampsdigital.com / financeiro123");
 }

@@ -5,17 +5,49 @@ de build, banco e deploy próprios. O SampsOS só encaminha `/financeiro` para
 cá por multi-zones — se este app cair, cai só `/financeiro`, e o sistema da
 agência continua de pé. Essa era a condição número um do pedido.
 
-## O que já está de pé
+## O que está de pé
 
-- Modelo de dados completo do que a cliente pediu, Financeiro e RH.
-- Login espelhado (marca à esquerda, formulário à direita) e o botão de troca
-  na tela do SampsOS.
-- Telas ligadas ao banco: painel, contas a receber, contas a pagar e vendas do
-  site do Giovanni Pacelli, com a conta do líquido aberta linha a linha.
-- `lib/money.ts` com a conta do líquido e os testes dela.
+Tudo o que a cliente pediu tem tela e ação, não só tabela no banco.
 
-As outras telas do catálogo (vouchers, folha, benefícios, pró-labore, valores a
-acertar, conciliação e todo o RH) têm tabela no banco e ainda não têm interface.
+**Financeiro**
+
+- Painel com os números do mês e a lista do que precisa de atenção hoje.
+- Contas a receber e a pagar: lançar (inclusive parcelado), dar baixa parcial,
+  estornar com motivo, cancelar com motivo, filtrar e exportar em CSV.
+- Vendas do site do Giovanni Pacelli: a conta do líquido aberta linha a linha
+  enquanto se digita, repasse de cartão por parcela e baixa quando cai.
+- Cursos, cupons e as vigências de nota fiscal e taxa.
+- Vouchers, com utilização e repasse como datas separadas.
+- Cadastros: clientes, fornecedores, contratos (que geram as parcelas a
+  receber), empresas e contas bancárias.
+- Banco: importação do extrato colado, conciliação com sugestão, fechamento e
+  reabertura do mês.
+- Busca em títulos, vendas, cadastros e colaboradores.
+
+**RH**
+
+- Colaboradores, benefícios do mês e bonificações por conta trazida.
+- Folha por competência: abre com os ativos, ajusta item a item com o
+  contracheque aberto ao lado, fecha, e vai para o Financeiro como uma conta a
+  pagar por colaborador — sem duplicar quando é reenviada.
+- Ficha de cada pessoa: férias (com conferência dos dias), exames
+  ocupacionais (o laudo só abre deixando registro de quem abriu), documentos,
+  contracheques e rescisão.
+
+**As regras que seguram tudo**
+
+- Título + baixa: status é calculado, nunca digitado.
+- Nada é apagado: cancelamento guarda motivo, erro de baixa vira estorno.
+- Dinheiro em centavos inteiros; percentual em pontos-base.
+- Chave única por origem: folha, contrato, benefício e venda reenviados
+  atualizam o mesmo título em vez de criar outro.
+- Mês fechado recusa lançamento e baixa naquela competência.
+- Papel do usuário decide o que aparece e o que a ação aceita: ADMIN,
+  FINANCEIRO, RH e LEITURA.
+
+Ainda provisório, à espera da cliente: a logo e as cores do Financeiro, e as
+taxas reais do "Paga-me" (o sistema usa 10% de nota, 1% no PIX e 4,5% no
+cartão até ela confirmar).
 
 ## Rodar aqui
 
@@ -25,12 +57,17 @@ npm install
 npm run db:push
 npm run db:seed          # dados FICTÍCIOS, iguais aos das telas aprovadas
 npm run dev              # http://localhost:3001/financeiro
-npm test
+npm test                 # testes das contas: dinheiro, folha, extrato
+npm run test:e2e         # testes de navegador (ver e2e/LEIA-ME.md)
 npm run db:usuario       # cria um usuário (ver "Primeiro acesso")
 ```
 
-O seed cria `admin@sampsdigital.com` com a senha `financeiro123`. É dado de
+O seed cria quatro usuários de teste com a senha `financeiro123`, um por papel:
+`admin@`, `financeiro@`, `rh@` e `leitura@sampsdigital.com`. É dado de
 desenvolvimento: **não rode o seed em produção.**
+
+Fora da Vercel (rodando `next start` na sua máquina, por exemplo), o next-auth
+precisa de `AUTH_TRUST_HOST="true"` no `.env`.
 
 ## Publicar
 
@@ -118,6 +155,14 @@ decidido pela aplicação, pelo papel do usuário, não por RLS do Postgres.
   (quando bateu na conta).
 - **Uma dona por fato.** `@@unique([origem, origemId])` impede o lançamento
   duplicado na raiz: reenviar a folha atualiza o mesmo título.
+- **Caminho com basePath.** `redirect()` do Next já acrescenta `/financeiro`:
+  passar o caminho com o prefixo leva a `/financeiro/financeiro` e dá 404. O
+  `redirect` do próprio next-auth não conhece o basePath, então `signIn` e
+  `signOut` são chamados com `redirect: false` e quem redireciona é o Next.
+  Para `<a>` e formulários `method="get"`, que não passam pelo router, o
+  caminho vai completo (`rota()` em `lib/acoes/comum.ts`).
+- **Papel checado no servidor.** Esconder botão é cortesia; o que protege é o
+  `exigir()` no começo de cada ação.
 - **Cascata sempre, carimbo só no que fechou.** Toda conta de dinheiro pode ser
   aberta linha a linha; o carimbo fica para mês fechado, folha enviada e
   rescisão homologada. Status do dia a dia é o chip da Samps.
@@ -129,8 +174,12 @@ decidido pela aplicação, pelo papel do usuário, não por RLS do Postgres.
 - Se "Paga-me" é o Pagar.me e quais são as taxas reais. As do seed (1% no PIX,
   4,5% no cartão) são **exemplo**, e ficam em `ConfigTaxa` com data de início,
   para que trocar a taxa não mude venda antiga.
-- Cadastro de curso com preço e cupom, ou valor pago digitado em cada venda.
-  As telas mostram a primeira; dá para começar pela segunda sem refazer nada.
+- Confirmar três decisões que divergem um pouco do que ela escreveu: status
+  calculado em vez de escolhido, mês fechado que trava de verdade, e o
+  cadastro de cursos. O cadastro de cursos ficou **manual dela** (decisão do
+  Jorito em 16/11/2026): os cursos atuais entram uma vez e ela cadastra os
+  novos; quando o curso não está cadastrado, dá para digitar o valor cobrado
+  na própria venda.
 - Quantos CNPJs e quais bancos; se o contador fecha a folha e em que formato;
   VA e VT por operadora ou em dinheiro; quem acessa o quê.
 

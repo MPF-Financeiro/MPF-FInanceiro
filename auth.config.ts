@@ -7,16 +7,20 @@ import type { NextAuthConfig } from "next-auth";
 export const authConfig = {
   session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
   basePath: "/financeiro/api/auth",
-  pages: { signIn: "/login" },
+  // Com basePath, o next-auth não prefixa estes caminhos: eles têm de vir
+  // completos, senão a pessoa é jogada para o login do SampsOS.
+  pages: { signIn: "/financeiro/login" },
   providers: [],
   callbacks: {
     authorized({ auth, request }) {
       const user = auth?.user;
-      const { pathname } = request.nextUrl;
+      // Dependendo de onde o app roda, o middleware vê o caminho com ou sem
+      // o basePath. Tirar o prefixo deixa a regra igual nos dois casos.
+      const pathname = request.nextUrl.pathname.replace(/^\/financeiro/, "") || "/";
       const isLogin = pathname === "/login";
 
       if (!user) return isLogin;
-      if (isLogin) return Response.redirect(new URL("/", request.nextUrl));
+      if (isLogin) return Response.redirect(new URL("/financeiro", request.nextUrl));
       return true;
     },
     async jwt({ token, user }) {
