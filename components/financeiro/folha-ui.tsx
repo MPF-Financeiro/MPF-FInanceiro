@@ -7,7 +7,6 @@ import { ESTADO_VAZIO } from "@/lib/acoes/comum";
 import { calcularItemFolha } from "@/lib/folha";
 import { formatBRL } from "@/lib/money";
 import { parseCentavos } from "@/lib/validacao";
-import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Cascata } from "@/components/financeiro/cascata";

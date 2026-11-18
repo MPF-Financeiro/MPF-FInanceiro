@@ -175,15 +175,6 @@ export function LoginView({ callbackUrl }: { callbackUrl?: string }) {
             <BotaoEntrar pronto={pronto} />
           </form>
 
-          {/* A volta para o outro sistema: o par do botão que vai no SampsOS. */}
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            <a
-              href="/login"
-              className="underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Ir para o SampsOS
-            </a>
-          </p>
         </div>
       </main>
     </div>

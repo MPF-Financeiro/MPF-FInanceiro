@@ -119,6 +119,23 @@ export function Vouchers({
                         </BotaoEnviar>
                       </form>
                     ) : null}
+                    {/* O cancelamento existia no servidor mas não tinha botão na tela. */}
+                    {podeEscrever && !v.cancelado && !v.recebido ? (
+                      <form action={acaoCancelar} className="mt-2 flex items-center gap-2">
+                        <input type="hidden" name="id" value={v.id} />
+                        <Input
+                          name="motivo"
+                          required
+                          minLength={5}
+                          placeholder="Motivo"
+                          aria-label={`Motivo do cancelamento do voucher ${v.codigo}`}
+                          className="h-9 w-36"
+                        />
+                        <BotaoEnviar variant="ghost" size="sm" enviando="…">
+                          Cancelar
+                        </BotaoEnviar>
+                      </form>
+                    ) : null}
                   </Td>
                 </tr>
               ))}

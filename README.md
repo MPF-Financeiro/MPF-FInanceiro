@@ -1,9 +1,10 @@
 # Samps Financeiro
 
-Financeiro e RH da Samps Digital. É um app **separado** do SampsOS: repositório
-de build, banco e deploy próprios. O SampsOS só encaminha `/financeiro` para
-cá por multi-zones — se este app cair, cai só `/financeiro`, e o sistema da
-agência continua de pé. Essa era a condição número um do pedido.
+Financeiro e RH da Samps Digital. É um sistema **à parte** do SampsOS: repositório,
+banco, deploy, login e endereço próprios. Nenhum dos dois importa código do
+outro nem aponta para o outro, então um pode cair, quebrar ou ser publicado
+sem o outro perceber. Essa era a condição número um do pedido: nada do
+Financeiro pode derrubar o sistema da agência.
 
 ## O que está de pé
 
@@ -85,17 +86,18 @@ precisa de `AUTH_TRUST_HOST="true"` no `.env`.
      `db push` e `migrate`, que não funcionam pelo pooler de transação.
      Prefira o host `...pooler.supabase.com` ao `db.<ref>.supabase.co`,
      porque o direto só responde em IPv6.
-3. Crie um **projeto próprio** na Vercel apontando para este repositório. Se a
-   pasta `financeiro/` ainda estiver dentro do repositório do SampsOS, use
-   **Root Directory = `financeiro`** nas configurações do projeto.
+3. Crie um **projeto próprio** na Vercel apontando para este repositório, com
+   Root Directory vazio (o app está na raiz). O projeto que já existe
+   (`mpffinanceiro`) só precisa trocar o repositório em Settings → Git e
+   apagar o Root Directory `financeiro`, que era de quando o app morava numa
+   pasta do repositório do SampsOS.
 4. Variáveis do projeto do Financeiro na Vercel: `DATABASE_URL`, `DIRECT_URL`,
    `AUTH_SECRET`, `AUTH_TRUST_HOST=true`.
 5. `npm run db:push` (ou `prisma migrate deploy`) contra o banco novo, com o
    `DIRECT_URL` preenchido.
-6. No projeto do **SampsOS**, defina `FINANCEIRO_URL` com a URL do deploy
-   acima (ex.: `https://samps-financeiro.vercel.app`). Sem essa variável o
-   SampsOS não encaminha nada e segue exatamente como hoje — ou seja, o
-   rewrite é opcional e reversível apagando uma variável.
+6. Se quiser um endereço mais bonito que o da Vercel, aponte um subdomínio
+   (ex.: `financeiro.sampsdigital.com.br`) para este projeto em Settings →
+   Domains. O SampsOS não precisa saber de nada.
 
 ### Primeiro acesso, depois do deploy
 
@@ -104,7 +106,6 @@ rodam da sua máquina, apontando para o banco de produção — por isso precisa
 do `DIRECT_URL` preenchido.
 
 ```bash
-cd financeiro
 cp .env.example .env     # preencha DATABASE_URL e DIRECT_URL do Supabase
 npm install
 npm run db:push          # cria as tabelas
@@ -124,16 +125,15 @@ o papel daquela pessoa, que é como você reseta uma senha sem mexer no banco.
 
 ### A raiz do domínio da Vercel
 
-O app inteiro vive sob `/financeiro`, para poder ser servido no domínio do
-SampsOS. Então a raiz do domínio próprio da Vercel não é uma página: quem
+O app inteiro vive sob `/financeiro` (o `basePath`). Isso vem de quando ele
+seria servido dentro do domínio do SampsOS; ficou porque funciona e porque
+tirar mexe em todos os caminhos do app. Então a raiz do domínio próprio da Vercel não é uma página: quem
 abrisse `mpffinanceiro.vercel.app` via um 404 e achava que o deploy tinha
 quebrado — a miniatura do painel da Vercel, inclusive, abre justamente a raiz.
 
 O `vercel.json` manda a raiz para `/financeiro/login`. É redirect temporário
 (307) de propósito: permanente ficaria no cache do navegador das pessoas e
-seria difícil de voltar atrás. Esse arquivo só vale para o domínio próprio
-deste deploy; quando o acesso for pelo domínio do SampsOS, a raiz é o SampsOS
-e nada disso é usado.
+seria difícil de voltar atrás.
 
 ### Antes de pôr dado real no Supabase
 
@@ -143,6 +143,14 @@ as permissões que o Supabase dá às tabelas feitas por lá. Ainda assim,
 `public`**, e nunca publique a `service_role key` em lugar nenhum: este banco
 guarda salário, CPF e laudo de exame. O acesso de quem usa o sistema é
 decidido pela aplicação, pelo papel do usuário, não por RLS do Postgres.
+
+## Relação com o SampsOS
+
+Nenhuma no código. Até 18/11/2026 o Financeiro morava na pasta `financeiro/`
+do repositório do SampsOS (sampsdigital2023/Samps), que o servia em
+`/financeiro` e tinha um botão "Entrar no Financeiro" no login. O Jorito
+decidiu separar tudo: o histórico veio para cá, e o SampsOS voltou a ser
+exatamente o que era antes do Financeiro existir.
 
 ## Decisões que valem para qualquer tela nova
 

@@ -1,0 +1,27 @@
+# Conferência de cada push: tipos, lint, testes das contas e build. Os testes
+# de navegador (npm run test:e2e) precisam de banco e servidor rodando e ficam
+# para a máquina de quem desenvolve; ver e2e/LEIA-ME.md.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      AUTH_SECRET: ci-apenas-para-o-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
