@@ -54,6 +54,15 @@ export function podeAdministrar(papel: PapelUsuario): boolean {
   return papel === PapelUsuario.ADMIN;
 }
 
+/**
+ * Relatórios da diretoria: todo mundo do Financeiro e a leitura; o RH não,
+ * porque eles somam o caixa inteiro da empresa. Perfis finais: a definir com
+ * a diretoria.
+ */
+export function podeVerRelatorios(papel: PapelUsuario): boolean {
+  return papel !== PapelUsuario.RH;
+}
+
 /** Salário, pró-labore e rescisão só para quem tem de ver. */
 export function podeVerRemuneracao(papel: PapelUsuario): boolean {
   return papel === PapelUsuario.ADMIN || papel === PapelUsuario.RH;

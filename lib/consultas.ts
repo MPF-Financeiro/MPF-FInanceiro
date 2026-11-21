@@ -145,7 +145,7 @@ export async function listarVendas(competencia: Date) {
 
 /** Tudo o que os selects de lançamento precisam, numa ida só ao banco. */
 export async function opcoesDeLancamento() {
-  const [empresas, clientes, fornecedores, contratos, colaboradores, contas] = await Promise.all([
+  const [empresas, clientes, fornecedores, contratos, colaboradores, contas, unidades] = await Promise.all([
     db.empresa.findMany({ where: { ativa: true }, orderBy: { nome: "asc" } }),
     db.cliente.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
     db.fornecedor.findMany({ where: { ativo: true }, orderBy: { nome: "asc" } }),
@@ -155,6 +155,7 @@ export async function opcoesDeLancamento() {
       orderBy: { nome: "asc" },
     }),
     db.contaBancaria.findMany({ where: { ativa: true }, orderBy: { apelido: "asc" } }),
+    db.unidadeNegocio.findMany({ where: { ativa: true }, orderBy: { nome: "asc" } }),
   ]);
 
   return {
@@ -168,6 +169,7 @@ export async function opcoesDeLancamento() {
     })),
     colaboradores: colaboradores.map((c) => ({ id: c.id, nome: c.nome })),
     contas: contas.map((c) => ({ id: c.id, nome: `${c.apelido} (${c.banco})` })),
+    unidades: unidades.map((u) => ({ id: u.id, nome: u.nome })),
   };
 }
 

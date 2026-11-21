@@ -13,7 +13,7 @@ export function compacto(centavos: number): string {
 }
 
 /** 30.420,15 vira "30,4": a tabela do gráfico diz em cima que é R$ mil. */
-function emMil(centavos: number) {
+export function emMil(centavos: number) {
   return (Math.abs(centavos) / 100_000).toLocaleString("pt-BR", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,

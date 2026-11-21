@@ -14,7 +14,7 @@ function estaAtivo(caminho: string, href: string) {
 
 function Lista({ grupos, caminho }: { grupos: GrupoMenu[]; caminho: string }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {grupos.map((g) => (
         <div key={g.titulo}>
           <p className="rotulo mb-1.5 px-3">{g.titulo}</p>
@@ -27,7 +27,7 @@ function Lista({ grupos, caminho }: { grupos: GrupoMenu[]; caminho: string }) {
                     href={item.href}
                     aria-current={ativo ? "page" : undefined}
                     className={cn(
-                      "relative flex items-center rounded-[4px] px-3 py-[7px] text-[14px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "relative flex items-center rounded-[4px] px-3 py-[6px] text-[14px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       ativo
                         ? "bg-card font-semibold text-foreground shadow-[0_1px_2px_rgba(21,42,58,.08)]"
                         : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
@@ -53,7 +53,7 @@ function Lista({ grupos, caminho }: { grupos: GrupoMenu[]; caminho: string }) {
 export function MenuLateral({ grupos }: { grupos: GrupoMenu[] }) {
   const caminho = usePathname() ?? "/";
   return (
-    <nav aria-label="Seções" className="flex-1 overflow-y-auto px-3 py-6">
+    <nav aria-label="Seções" className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
       <Lista grupos={grupos} caminho={caminho} />
     </nav>
   );

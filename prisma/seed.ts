@@ -6,6 +6,7 @@
  * entra aqui: quando o sistema for usado de verdade, isto não roda em produção.
  */
 import {
+  AtividadeCaixa,
   Categoria,
   Direcao,
   FormaPagamento,
@@ -63,6 +64,7 @@ async function main() {
     db.configTaxa.deleteMany(),
     db.colaborador.deleteMany(),
     db.usuario.deleteMany(),
+    db.unidadeNegocio.deleteMany(),
   ]);
 
   const senhaHash = await bcrypt.hash("financeiro123", 10);
@@ -495,6 +497,89 @@ async function main() {
       },
     ],
   });
+
+  // ── Classificação dos relatórios ────────────────────────────────────
+  // Duas BUs de exemplo, até a diretoria mandar a lista oficial.
+  const agencia = await db.unidadeNegocio.create({ data: { nome: "Agência" } });
+  const cursos = await db.unidadeNegocio.create({ data: { nome: "Cursos do Giovanni" } });
+  await db.titulo.updateMany({
+    where: { direcao: Direcao.RECEBER, categoria: Categoria.VENDAS_SITE },
+    data: { unidadeId: cursos.id },
+  });
+  await db.titulo.updateMany({
+    where: { direcao: Direcao.RECEBER, categoria: Categoria.SERVICOS_PRESTADOS },
+    data: { unidadeId: agencia.id },
+  });
+  await db.titulo.updateMany({
+    where: { direcao: Direcao.PAGAR, categoria: { in: [Categoria.FORNECEDORES, Categoria.IMPOSTOS_ENCARGOS] }, origem: { not: Origem.FOLHA } },
+    data: { unidadeId: agencia.id },
+  });
+
+  // O saldo do extrato no primeiro dia do histórico.
+  const inicioDoHistorico = new Date(Date.UTC(ANO, MES - 1 - 5, 1));
+  await db.contaBancaria.update({
+    where: { id: conta.id },
+    data: { saldoInicial: reais(18250), saldoInicialEm: inicioDoHistorico },
+  });
+
+  // Um investimento (equipamento), um empréstimo do sócio e uma receita fora da operação.
+  {
+    const mesEmp = new Date(Date.UTC(ANO, MES - 1 - 1, 1));
+    const ea = mesEmp.getUTCFullYear();
+    const em = mesEmp.getUTCMonth() + 1;
+    const emprestimo = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.RECEBER, categoria: Categoria.VALORES_A_ACERTAR,
+        descricao: "Empréstimo do Giovanni para o caixa", valor: reais(2500), competencia: mesEmp,
+        vencimento: d(ea, em, 14), forma: FormaPagamento.TRANSFERENCIA, clienteId: clientes[1].id,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: emprestimo.id, valor: reais(2500), data: d(ea, em, 14), forma: FormaPagamento.TRANSFERENCIA, contaId: conta.id },
+    });
+    const devolucao = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.PAGAR, categoria: Categoria.VALORES_A_ACERTAR,
+        descricao: "Devolução do empréstimo, 1ª parte", valor: reais(1000), competencia,
+        vencimento: d(ANO, MES, 12), forma: FormaPagamento.PIX, fornecedorId: fornecedores[4].id,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: devolucao.id, valor: reais(1000), data: d(ANO, MES, 12), forma: FormaPagamento.PIX, contaId: conta.id },
+    });
+    await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.PAGAR, categoria: Categoria.FORNECEDORES,
+        descricao: "Edição de vídeo, freela", valor: reais(2900), competencia,
+        vencimento: d(ANO, MES, 27), forma: FormaPagamento.PIX, fornecedorId: freelas.id, unidadeId: agencia.id,
+      },
+    });
+  }
+  {
+    const mesInv = new Date(Date.UTC(ANO, MES - 1 - 2, 1));
+    const a = mesInv.getUTCFullYear();
+    const m = mesInv.getUTCMonth() + 1;
+    const note = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.PAGAR, categoria: Categoria.OUTROS,
+        descricao: "Notebook para edição de vídeo", valor: reais(7800), competencia: mesInv,
+        vencimento: d(a, m, 14), forma: FormaPagamento.PIX, atividade: AtividadeCaixa.INVESTIMENTO,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: note.id, valor: reais(7800), data: d(a, m, 14), forma: FormaPagamento.PIX, contaId: conta.id },
+    });
+    const rend = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.RECEBER, categoria: Categoria.OUTROS,
+        descricao: "Rendimento da conta remunerada", valor: reais(184.6), competencia,
+        vencimento: d(ANO, MES, 1), forma: FormaPagamento.TRANSFERENCIA, naoOperacional: true,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: rend.id, valor: reais(184.6), data: d(ANO, MES, 1), forma: FormaPagamento.TRANSFERENCIA, contaId: conta.id },
+    });
+  }
 
   console.log("Seed pronto. Entre com admin@sampsdigital.com / financeiro123");
 }

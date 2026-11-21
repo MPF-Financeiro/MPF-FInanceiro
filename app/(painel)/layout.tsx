@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth, signOut } from "@/lib/auth";
 import { FinanceiroLogo } from "@/components/brand/financeiro-logo";
 import { MenuCelular, MenuLateral, type GrupoMenu } from "@/components/financeiro/menu";
-import { podeLancar, podeRH, sessaoAtual } from "@/lib/permissoes";
+import { podeLancar, podeRH, podeVerRelatorios, sessaoAtual } from "@/lib/permissoes";
 import { ROTULO_PAPEL } from "@/lib/permissoes";
 
 export default async function PainelLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +15,21 @@ export default async function PainelLayout({ children }: { children: React.React
   // tomar um "sem permissão" na cara.
   const grupos: GrupoMenu[] = [
     { titulo: "Visão", itens: [{ href: "/", rotulo: "Visão executiva" }] },
+    ...(quem && podeVerRelatorios(quem.papel)
+      ? [
+          {
+            titulo: "Relatórios",
+            itens: [
+              { href: "/relatorios/fluxo-de-caixa", rotulo: "Fluxo de caixa" },
+              { href: "/relatorios/gastos-fixos", rotulo: "Gastos fixos" },
+              { href: "/relatorios/margem", rotulo: "Margem por BU" },
+              { href: "/relatorios/resumo", rotulo: "Resumo da operação" },
+              { href: "/relatorios/resultado", rotulo: "Resultado operacional" },
+              { href: "/relatorios/demonstracoes", rotulo: "Demonstrações" },
+            ],
+          },
+        ]
+      : []),
     {
       titulo: "Movimento",
       itens: [

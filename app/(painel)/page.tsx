@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { alertas, resumoDoPainel } from "@/lib/consultas";
 import { visaoExecutiva } from "@/lib/indicadores";
+import { resultadoOperacional, saldoEm } from "@/lib/relatorios";
+import { carregarRelatorios } from "@/lib/relatorios-db";
+import { podeVerRelatorios, sessaoAtual } from "@/lib/permissoes";
+import { pct } from "@/components/financeiro/relatorio";
 import { CATEGORIA } from "@/lib/rotulos";
 import { cn, competenciaLonga, dataCurta } from "@/lib/utils";
 import { formatBRL } from "@/lib/money";
@@ -25,14 +29,19 @@ const linkDaFolha = "text-[13px] text-brand underline decoration-brand/30 underl
 
 export default async function VisaoExecutivaPage() {
   const hoje = new Date();
-  const [v, site, avisos] = await Promise.all([
+  const [v, site, avisos, sessao, rel] = await Promise.all([
     visaoExecutiva(hoje),
     resumoDoPainel(hoje),
     alertas(hoje),
+    sessaoAtual(),
+    carregarRelatorios(),
   ]);
+  const verRelatorios = Boolean(sessao && podeVerRelatorios(sessao.papel));
+  const r = resultadoOperacional(rel.lancamentos, hoje, rel.contasParaSaldo);
 
   const sobra = v.atual.entradas - v.atual.saidas;
-  const saldoTotal = v.saldos.reduce((a, c) => a + c.saldo, 0);
+  // Saldo inicial de cada conta + tudo o que foi baixado nela desde então.
+  const saldoTotal = saldoEm(rel.contasParaSaldo, rel.lancamentos, new Date(hoje.getTime() + 86_400_000));
   const totalGastos = v.gastos.reduce((a, g) => a + g.valor, 0);
   const mes = competenciaLonga(hoje);
   const Mes = mes.charAt(0).toUpperCase() + mes.slice(1);
@@ -78,15 +87,48 @@ export default async function VisaoExecutivaPage() {
         <Numero
           rotulo="Saldo em contas"
           valor={saldoTotal}
-          nota={`${v.saldos.length} ${v.saldos.length === 1 ? "conta" : "contas"} · pelo que foi baixado`}
+          nota={`${rel.contas.length} ${rel.contas.length === 1 ? "conta" : "contas"} · saldo inicial + baixas`}
         />
       </section>
+
+      {verRelatorios ? (
+        <section aria-label="Resultado do mês" className="mt-9">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-[15px] font-semibold">Resultado do mês, por competência</h2>
+            <Link href="/relatorios/resultado" className={linkDaFolha}>Abrir o resultado</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-x-5 gap-y-6 sm:gap-x-8 lg:grid-cols-4">
+            <Numero rotulo="Faturamento" valor={r.faturamento} nota={`margem de contribuição ${pct(r.taxaBps)}`} />
+            <Numero rotulo="Gastos fixos" valor={r.fixos} nota="os 10 grupos" />
+            <Numero
+              rotulo="Lucro operacional"
+              valor={r.lucroOperacional}
+              sinal
+              tom={r.lucroOperacional < 0 ? "ruim" : "bom"}
+              nota="margem − gastos fixos"
+            />
+            <Numero
+              rotulo="Ponto de equilíbrio"
+              valor={r.pontoDeEquilibrio ?? 0}
+              nota={
+                r.pontoDeEquilibrio === null
+                  ? "não calculável: sem margem positiva"
+                  : `margem de segurança ${pct(r.margemDeSegurancaBps)}`
+              }
+            />
+          </div>
+        </section>
+      ) : null}
 
       <div className="mt-9 grid gap-6 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle>Fluxo de caixa, últimos 6 meses</CardTitle>
-            <span className="text-xs text-muted-foreground">regime de caixa</span>
+            {verRelatorios ? (
+              <Link href="/relatorios/fluxo-de-caixa" className={linkDaFolha}>Por atividade</Link>
+            ) : (
+              <span className="text-xs text-muted-foreground">regime de caixa</span>
+            )}
           </CardHeader>
           <CardBody className="pb-5">
             <GraficoCaixa meses={v.caixa} />
