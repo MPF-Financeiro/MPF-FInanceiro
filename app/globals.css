@@ -3,50 +3,60 @@
 @tailwind utilities;
 
 /*
-  Mesma estrutura de tokens do SampsOS. A troca é uma só: onde o SampsOS usa
-  o ciano-lente (#2DB3C8), o Financeiro usa a tinta de caneta (#1E3A6E), que
-  veio da direção Livro-caixa. Tudo o mais — escalas, raio, tipografia — é
-  igual, para que os dois sistemas se corrijam no mesmo lugar.
+  Livro-caixa, a direção aprovada em 26/10: papel pautado, tinta azul de
+  caneta, carimbo de status e números em coluna, como num razão contábil.
+  Os nomes dos tokens são os mesmos de antes; o que muda é o mundo.
+
+  papel   #E9ECE6   o fundo, verde-acinzentado de livro de escritório
+  folha   #FFFFFF   onde os números moram
+  tinta   #152A3A   texto
+  caneta  #1E3A6E   ação, seleção, o que se clica
+  pauta   #C9D2CC   linhas
+  marca   #A5342A   vencido, saída, o que dói
+  verde   #2F6B4A   entrou, recebido, fechado
 */
 
 @layer base {
   :root {
-    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-    --font-display: "Plus Jakarta Sans", var(--font-sans);
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-display: "Archivo", var(--font-sans);
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-    --radius: 0.625rem;
+    --radius: 0.375rem;
 
-    --background: 220 20% 98%;
-    --foreground: 220 45% 8%;
+    --background: 90 14% 91%;
+    --foreground: 206 47% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 45% 8%;
+    --card-foreground: 206 47% 15%;
 
-    --muted: 225 20% 96%;
-    --muted-foreground: 220 9% 42%;
+    /* a segunda camada: barra lateral e faixas de cabeçalho */
+    --paper-deep: 98 13% 86%;
 
-    --border: 220 16% 90%;
-    --input: 220 14% 85%;
-    --ring: 217 57% 27%;
+    --muted: 100 12% 95%;
+    --muted-foreground: 207 15% 38%;
 
-    /* Tinta de caneta: a cor de ação do Financeiro. */
-    --brand: 217 57% 27%; /* #1E3A6E */
-    --brand-ink: 217 60% 20%;
-    --primary: 217 57% 27%;
+    --border: 140 9% 81%;
+    --rule-soft: 110 11% 89%;
+    --input: 140 8% 72%;
+    --ring: 219 57% 27%;
+
+    --brand: 219 57% 27%;
+    --brand-ink: 219 60% 19%;
+    --primary: 219 57% 27%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 225 20% 96%;
-    --secondary-foreground: 220 45% 8%;
+    --secondary: 100 12% 95%;
+    --secondary-foreground: 206 47% 15%;
 
-    --accent: 218 45% 95%;
-    --accent-foreground: 217 57% 27%;
+    --accent: 219 40% 93%;
+    --accent-foreground: 219 57% 27%;
 
-    --success: 145 70% 30%;
+    --success: 147 39% 30%;
     --success-foreground: 0 0% 100%;
-    --warning: 32 93% 34%;
+    --warning: 36 77% 31%;
     --warning-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
+    --destructive: 5 59% 41%;
     --destructive-foreground: 0 0% 100%;
 
     color-scheme: light;
@@ -56,57 +66,86 @@
     @apply border-border;
   }
 
+  html {
+    scrollbar-color: hsl(var(--input)) transparent;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    font-feature-settings: "ss01" 1;
   }
 
-  /* Número é para comparar coluna com coluna. Nunca em fonte proporcional. */
+  ::selection {
+    background: hsl(var(--brand) / 0.18);
+    color: hsl(var(--foreground));
+  }
+
+  :focus-visible {
+    outline-color: hsl(var(--ring));
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  /*
+    Número é para comparar coluna com coluna: em fonte monoespaçada, com os
+    algarismos alinhados, como no razão. É medida, não fantasia.
+  */
   .num {
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
+    font-feature-settings: "tnum" 1, "zero" 0;
+    letter-spacing: -0.01em;
   }
 }
 
 @layer components {
   /*
-    Chip: o status do dia a dia, igual ao do SampsOS.
+    Carimbo de status: retângulo de tinta, levemente torto, legível num print
+    preto e branco mandado no WhatsApp. A forma muda com o estado (cheio para
+    o que dói, contorno para o resto), então a cor nunca trabalha sozinha.
   */
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
-  }
-  .chip::before {
-    content: "";
-    @apply size-1.5 rounded-full bg-current;
+    @apply inline-flex items-center whitespace-nowrap rounded-[3px] border-[1.5px] px-1.5 py-[3px] text-[10.5px] font-semibold uppercase leading-none tracking-[0.08em];
+    font-family: var(--font-mono);
+    transform: rotate(-1.5deg);
+    border-color: currentColor;
   }
   .chip-ok {
-    @apply bg-[hsl(var(--success)/0.12)] text-[hsl(var(--success))];
+    color: hsl(var(--success));
   }
   .chip-warn {
-    @apply bg-[hsl(var(--warning)/0.14)] text-[hsl(var(--warning))];
+    color: hsl(var(--warning));
   }
   .chip-bad {
-    @apply bg-[hsl(var(--destructive)/0.12)] text-[hsl(var(--destructive))];
+    @apply border-transparent;
+    color: hsl(var(--destructive-foreground));
+    background: hsl(var(--destructive));
   }
   .chip-info {
-    @apply bg-accent text-accent-foreground;
+    color: hsl(var(--muted-foreground));
   }
   .chip-plain {
-    @apply bg-muted text-muted-foreground;
+    @apply border-dashed;
+    color: hsl(var(--muted-foreground));
   }
 
-  /*
-    Carimbo: só para o que está fechado e não muda mais — mês fechado, folha
-    enviada, rescisão homologada. Foi o que ficou da direção Livro-caixa.
-    Legível em print preto e branco, que é como as coisas circulam no WhatsApp.
-  */
+  /* Carimbo grande: mês fechado, folha enviada, rescisão homologada. */
   .carimbo {
-    @apply inline-block -rotate-2 rounded-[3px] border-2 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider;
+    @apply inline-block -rotate-2 rounded-[3px] border-2 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.12em];
+    font-family: var(--font-mono);
     border-color: hsl(var(--success));
     color: hsl(var(--success));
   }
   .carimbo-neutro {
     border-color: hsl(var(--muted-foreground));
     color: hsl(var(--muted-foreground));
+  }
+
+  /* Rótulo de coluna e de número: pequeno, espaçado, sem gritar. */
+  .rotulo {
+    @apply text-[11px] font-semibold uppercase tracking-[0.09em] text-muted-foreground;
   }
 }
