@@ -6,6 +6,7 @@
  * entra aqui: quando o sistema for usado de verdade, isto não roda em produção.
  */
 import {
+  AtividadeCaixa,
   Categoria,
   Direcao,
   FormaPagamento,
@@ -63,6 +64,7 @@ async function main() {
     db.configTaxa.deleteMany(),
     db.colaborador.deleteMany(),
     db.usuario.deleteMany(),
+    db.unidadeNegocio.deleteMany(),
   ]);
 
   const senhaHash = await bcrypt.hash("financeiro123", 10);
@@ -168,6 +170,90 @@ async function main() {
     if (p.pago) {
       await db.baixa.create({
         data: { tituloId: titulo.id, valor: p.valor, data: p.vence, forma: FormaPagamento.PIX, contaId: conta.id },
+      });
+    }
+  }
+
+  // ── Histórico: os cinco meses anteriores, já pagos e recebidos ─────
+  // Sem histórico, o fluxo de caixa e as comparações mês a mês da Visão
+  // executiva não têm o que mostrar. Valores inventados, mas coerentes:
+  // a agência fatura entre 30 e 40 mil e gasta quase tudo com a equipe.
+  const maisClientes = await Promise.all(
+    [
+      { nome: "Construtora Aurora", documento: "44.444.444/0001-44" },
+      { nome: "Escola Pequeno Saber", documento: "55.555.555/0001-55" },
+    ].map((c) => db.cliente.create({ data: { ...c, empresaId: empresa.id } }))
+  );
+  const freelas = await db.fornecedor.create({
+    data: { nome: "Estúdio de edição (freela)", categoria: Categoria.FORNECEDORES },
+  });
+
+  // Mês corrente: as duas contas novas.
+  {
+    const aurora = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.RECEBER, categoria: Categoria.SERVICOS_PRESTADOS,
+        descricao: "Gestão de marca, mensalidade", valor: reais(9800), competencia,
+        vencimento: d(ANO, MES, 10), forma: FormaPagamento.PIX, clienteId: maisClientes[0].id,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: aurora.id, valor: reais(9800), data: d(ANO, MES, 10), forma: FormaPagamento.PIX, contaId: conta.id },
+    });
+    await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.RECEBER, categoria: Categoria.SERVICOS_PRESTADOS,
+        descricao: "Campanha de matrículas 2027", valor: reais(6500), competencia,
+        vencimento: d(ANO, MES, 28), forma: FormaPagamento.BOLETO, clienteId: maisClientes[1].id,
+      },
+    });
+  }
+
+  const variacao = [0.92, 1.04, 0.97, 1.08, 1.0];
+  for (let k = 5; k >= 1; k--) {
+    const base = new Date(Date.UTC(ANO, MES - 1 - k, 1));
+    const a = base.getUTCFullYear();
+    const m = base.getUTCMonth() + 1;
+    const f = variacao[5 - k];
+    const entradas = [
+      { c: clientes[0], descricao: "Social media, mensalidade", valor: reais(3200), dia: 5 },
+      { c: clientes[1], descricao: "Tráfego pago, mensalidade", valor: reais(2800), dia: 10 },
+      { c: clientes[2], descricao: "Identidade visual, parcela", valor: reais(2500), dia: 15 },
+      { c: maisClientes[0], descricao: "Gestão de marca, mensalidade", valor: reais(9800), dia: 10 },
+      { c: maisClientes[1], descricao: "Conteúdo e campanhas", valor: Math.round(reais(6500) * f), dia: 12 },
+      { c: clientes[0], descricao: "Produção de vídeo", valor: Math.round(reais(11000) * f * f), dia: 22 },
+    ];
+    const saidas = [
+      { forn: fornecedores[0], cat: Categoria.ALUGUEL, descricao: "Aluguel da sala", valor: reais(2400), dia: 5 },
+      { forn: fornecedores[1], cat: Categoria.SERVICOS_ASSINATURAS, descricao: "Creative Cloud, 3 licenças", valor: reais(389.7), dia: 8 },
+      { forn: fornecedores[2], cat: Categoria.IMPOSTOS_ENCARGOS, descricao: "DAS e encargos", valor: Math.round(reais(1870.4) * f), dia: 20 },
+      { forn: fornecedores[3], cat: Categoria.SALARIOS, descricao: "Folha líquida, 8 colaboradores", valor: reais(21480), dia: 5, origem: Origem.FOLHA, origemId: `folha-${a}-${m}` },
+      { forn: freelas, cat: Categoria.FORNECEDORES, descricao: "Edição de vídeo, freela", valor: Math.round(reais(2600) * f * f), dia: 18 },
+      { forn: null, cat: Categoria.PRO_LABORE, descricao: "Pró-labore do sócio", valor: reais(4000), dia: 6 },
+    ];
+    for (const e of entradas) {
+      const t = await db.titulo.create({
+        data: {
+          empresaId: empresa.id, direcao: Direcao.RECEBER, categoria: Categoria.SERVICOS_PRESTADOS,
+          descricao: e.descricao, valor: e.valor, competencia: base, vencimento: d(a, m, e.dia),
+          forma: FormaPagamento.PIX, clienteId: e.c.id,
+        },
+      });
+      await db.baixa.create({
+        data: { tituloId: t.id, valor: e.valor, data: d(a, m, e.dia), forma: FormaPagamento.PIX, contaId: conta.id },
+      });
+    }
+    for (const s_ of saidas) {
+      const t = await db.titulo.create({
+        data: {
+          empresaId: empresa.id, direcao: Direcao.PAGAR, categoria: s_.cat,
+          descricao: s_.descricao, valor: s_.valor, competencia: base, vencimento: d(a, m, s_.dia),
+          forma: FormaPagamento.PIX, fornecedorId: s_.forn?.id ?? null,
+          origem: s_.origem ?? Origem.MANUAL, origemId: s_.origemId ?? null,
+        },
+      });
+      await db.baixa.create({
+        data: { tituloId: t.id, valor: s_.valor, data: d(a, m, s_.dia), forma: FormaPagamento.PIX, contaId: conta.id },
       });
     }
   }
@@ -411,6 +497,89 @@ async function main() {
       },
     ],
   });
+
+  // ── Classificação dos relatórios ────────────────────────────────────
+  // Duas BUs de exemplo, até a diretoria mandar a lista oficial.
+  const agencia = await db.unidadeNegocio.create({ data: { nome: "Agência" } });
+  const cursos = await db.unidadeNegocio.create({ data: { nome: "Cursos do Giovanni" } });
+  await db.titulo.updateMany({
+    where: { direcao: Direcao.RECEBER, categoria: Categoria.VENDAS_SITE },
+    data: { unidadeId: cursos.id },
+  });
+  await db.titulo.updateMany({
+    where: { direcao: Direcao.RECEBER, categoria: Categoria.SERVICOS_PRESTADOS },
+    data: { unidadeId: agencia.id },
+  });
+  await db.titulo.updateMany({
+    where: { direcao: Direcao.PAGAR, categoria: { in: [Categoria.FORNECEDORES, Categoria.IMPOSTOS_ENCARGOS] }, origem: { not: Origem.FOLHA } },
+    data: { unidadeId: agencia.id },
+  });
+
+  // O saldo do extrato no primeiro dia do histórico.
+  const inicioDoHistorico = new Date(Date.UTC(ANO, MES - 1 - 5, 1));
+  await db.contaBancaria.update({
+    where: { id: conta.id },
+    data: { saldoInicial: reais(18250), saldoInicialEm: inicioDoHistorico },
+  });
+
+  // Um investimento (equipamento), um empréstimo do sócio e uma receita fora da operação.
+  {
+    const mesEmp = new Date(Date.UTC(ANO, MES - 1 - 1, 1));
+    const ea = mesEmp.getUTCFullYear();
+    const em = mesEmp.getUTCMonth() + 1;
+    const emprestimo = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.RECEBER, categoria: Categoria.VALORES_A_ACERTAR,
+        descricao: "Empréstimo do Giovanni para o caixa", valor: reais(2500), competencia: mesEmp,
+        vencimento: d(ea, em, 14), forma: FormaPagamento.TRANSFERENCIA, clienteId: clientes[1].id,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: emprestimo.id, valor: reais(2500), data: d(ea, em, 14), forma: FormaPagamento.TRANSFERENCIA, contaId: conta.id },
+    });
+    const devolucao = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.PAGAR, categoria: Categoria.VALORES_A_ACERTAR,
+        descricao: "Devolução do empréstimo, 1ª parte", valor: reais(1000), competencia,
+        vencimento: d(ANO, MES, 12), forma: FormaPagamento.PIX, fornecedorId: fornecedores[4].id,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: devolucao.id, valor: reais(1000), data: d(ANO, MES, 12), forma: FormaPagamento.PIX, contaId: conta.id },
+    });
+    await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.PAGAR, categoria: Categoria.FORNECEDORES,
+        descricao: "Edição de vídeo, freela", valor: reais(2900), competencia,
+        vencimento: d(ANO, MES, 27), forma: FormaPagamento.PIX, fornecedorId: freelas.id, unidadeId: agencia.id,
+      },
+    });
+  }
+  {
+    const mesInv = new Date(Date.UTC(ANO, MES - 1 - 2, 1));
+    const a = mesInv.getUTCFullYear();
+    const m = mesInv.getUTCMonth() + 1;
+    const note = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.PAGAR, categoria: Categoria.OUTROS,
+        descricao: "Notebook para edição de vídeo", valor: reais(7800), competencia: mesInv,
+        vencimento: d(a, m, 14), forma: FormaPagamento.PIX, atividade: AtividadeCaixa.INVESTIMENTO,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: note.id, valor: reais(7800), data: d(a, m, 14), forma: FormaPagamento.PIX, contaId: conta.id },
+    });
+    const rend = await db.titulo.create({
+      data: {
+        empresaId: empresa.id, direcao: Direcao.RECEBER, categoria: Categoria.OUTROS,
+        descricao: "Rendimento da conta remunerada", valor: reais(184.6), competencia,
+        vencimento: d(ANO, MES, 1), forma: FormaPagamento.TRANSFERENCIA, naoOperacional: true,
+      },
+    });
+    await db.baixa.create({
+      data: { tituloId: rend.id, valor: reais(184.6), data: d(ANO, MES, 1), forma: FormaPagamento.TRANSFERENCIA, contaId: conta.id },
+    });
+  }
 
   console.log("Seed pronto. Entre com admin@sampsdigital.com / financeiro123");
 }

@@ -22,10 +22,11 @@ async function entrar(b, email) {
   const b = await chromium.launch();
 
   const leitura = await entrar(b, 'leitura@sampsdigital.com');
-  let menu = await leitura.locator('header nav a').allTextContents();
-  checa(!menu.includes('RH'), 'só leitura não vê RH no menu');
+  let menu = await leitura.locator('nav[aria-label="Seções"] a').allTextContents();
+  checa(menu.includes('A receber'), 'o menu lateral foi lido');
+  checa(!menu.includes('RH e folha'), 'só leitura não vê RH no menu');
   checa(!menu.includes('Cadastros'), 'só leitura não vê Cadastros no menu');
-  checa(!menu.includes('Banco'), 'só leitura não vê Banco no menu');
+  checa(!menu.includes('Banco e conciliação'), 'só leitura não vê Banco no menu');
   await leitura.goto(`${BASE}/receber`, { waitUntil: 'networkidle' });
   checa(
     !(await leitura.getByRole('link', { name: 'Lançar conta a receber' }).count()),
@@ -39,8 +40,8 @@ async function entrar(b, email) {
   checa(exp.status() === 403, 'só leitura não exporta a folha');
 
   const rh = await entrar(b, 'rh@sampsdigital.com');
-  menu = await rh.locator('header nav a').allTextContents();
-  checa(menu.includes('RH'), 'o RH vê o RH no menu');
+  menu = await rh.locator('nav[aria-label="Seções"] a').allTextContents();
+  checa(menu.includes('RH e folha'), 'o RH vê o RH no menu');
   checa(!menu.includes('Cadastros'), 'o RH não vê os cadastros do Financeiro');
   await rh.goto(`${BASE}/cadastros`, { waitUntil: 'networkidle' });
   checa(/financeiro\/?$/.test(rh.url()), 'o RH é devolvido dos cadastros');

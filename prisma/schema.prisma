@@ -88,6 +88,10 @@ model ContaBancaria {
   numero    String?
   apelido   String
   ativa     Boolean @default(true)
+  /// Centavos. O saldo do banco no dia `saldoInicialEm`; o fluxo de caixa
+  /// parte dele. Sem ele, o saldo é só o que o sistema movimentou.
+  saldoInicial   Int       @default(0)
+  saldoInicialEm DateTime?
 
   baixas       Baixa[]
   fechamentos  FechamentoMensal[]
@@ -172,6 +176,47 @@ enum Categoria {
   OUTROS
 }
 
+/// Classificação dos relatórios da diretoria (especificação de 21/11/2026).
+/// Os campos do título são opcionais: vazio quer dizer "use o padrão da
+/// categoria" (lib/classificacao.ts). Assim nenhum lançamento antigo precisa
+/// ser migrado e quem lança só mexe quando foge da regra.
+enum AtividadeCaixa {
+  OPERACIONAL
+  INVESTIMENTO
+  FINANCIAMENTO
+}
+
+enum NaturezaGasto {
+  FIXO
+  VARIAVEL
+}
+
+/// Os 10 grupos de gasto fixo, na ordem da especificação.
+enum GrupoGasto {
+  PESSOAL
+  CONSUMO
+  INFRAESTRUTURA
+  COMERCIAL
+  MARKETING
+  ADMINISTRATIVO
+  BANCARIA
+  FINANCEIRA
+  VEICULOS
+  DIRETORIA
+}
+
+/// Unidade de negócio (BU). A lista oficial vem da diretoria.
+model UnidadeNegocio {
+  id      String   @id @default(cuid())
+  nome    String   @unique
+  ativa   Boolean  @default(true)
+  criadoEm DateTime @default(now())
+
+  titulos Titulo[]
+
+  @@map("unidades_negocio")
+}
+
 enum FormaPagamento {
   PIX
   CARTAO
@@ -225,6 +270,14 @@ model Titulo {
 
   origem   Origem  @default(MANUAL)
   origemId String?
+
+  atividade      AtividadeCaixa?
+  natureza       NaturezaGasto?
+  grupo          GrupoGasto?
+  unidade        UnidadeNegocio? @relation(fields: [unidadeId], references: [id])
+  unidadeId      String?
+  /// Receita que não vem da operação (rendimento, venda de bem).
+  naoOperacional Boolean @default(false)
 
   canceladoEm        DateTime?
   motivoCancelamento String?

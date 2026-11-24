@@ -7,6 +7,7 @@ import {
   Clientes,
   Contratos,
   EmpresasEContas,
+  Unidades,
   Fornecedores,
 } from "@/components/financeiro/cadastros-ui";
 
@@ -17,7 +18,7 @@ export default async function CadastrosPage() {
   if (!sessao) redirect("/login");
   if (!podeLancar(sessao.papel)) redirect("/");
 
-  const [empresas, contas, clientes, fornecedores, contratos] = await Promise.all([
+  const [empresas, contas, clientes, fornecedores, contratos, unidades] = await Promise.all([
     db.empresa.findMany({ orderBy: { nome: "asc" } }),
     db.contaBancaria.findMany({ orderBy: { apelido: "asc" }, include: { empresa: true } }),
     db.cliente.findMany({
@@ -29,6 +30,7 @@ export default async function CadastrosPage() {
       orderBy: { numero: "asc" },
       include: { cliente: true, _count: { select: { titulos: true } } },
     }),
+    db.unidadeNegocio.findMany({ orderBy: { nome: "asc" }, include: { _count: { select: { titulos: true } } } }),
   ]);
 
   const hoje = paraInputDate(hojeUTC());
@@ -40,7 +42,7 @@ export default async function CadastrosPage() {
     <>
       <Cabecalho
         titulo="Cadastros"
-        descricao="A base que os lançamentos usam: clientes, fornecedores, contratos, empresas e contas bancárias."
+        descricao="A base que os lançamentos usam: clientes, fornecedores, contratos, empresas, contas bancárias e unidades de negócio."
       />
       <div className="space-y-6">
         <Clientes
@@ -95,7 +97,13 @@ export default async function CadastrosPage() {
             numero: c.numero,
             empresa: c.empresa.nome,
             ativa: c.ativa,
+            saldoInicial: c.saldoInicial,
+            saldoInicialEm: c.saldoInicialEm,
           }))}
+          podeAdministrar={podeAdministrar(sessao.papel)}
+        />
+        <Unidades
+          unidades={unidades.map((u) => ({ id: u.id, nome: u.nome, ativa: u.ativa, titulos: u._count.titulos }))}
           podeAdministrar={podeAdministrar(sessao.papel)}
         />
       </div>
