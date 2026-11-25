@@ -71,7 +71,7 @@ export default async function VendasPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
         <Numero rotulo="Líquido no PIX" valor={totalPix} nota={`${pix.length} vendas`} />
         <Numero rotulo="Líquido no cartão" valor={totalCartao} nota={`${cartao.length} vendas`} />
         <Numero rotulo="Nota e taxas" valor={totalTaxas} nota="o que não chega na conta" />

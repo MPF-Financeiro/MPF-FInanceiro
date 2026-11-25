@@ -60,6 +60,7 @@ npm run db:seed          # dados FICTÍCIOS, iguais aos das telas aprovadas
 npm run dev              # http://localhost:3001/financeiro
 npm test                 # testes das contas: dinheiro, folha, extrato
 npm run test:e2e         # testes de navegador (ver e2e/LEIA-ME.md)
+npm run db:seed:producao # prepara o banco de produção (ver "Primeiro acesso")
 npm run db:usuario       # cria um usuário (ver "Primeiro acesso")
 ```
 
@@ -111,17 +112,37 @@ npm install
 npm run db:push          # cria as tabelas
 ```
 
-Depois, o seu usuário. **Não rode o seed em produção:** ele apaga as tabelas
-e cria contas com senha conhecida.
+Depois, o seed de produção. Ele **nunca apaga nada** e só cria o que falta:
+o seu usuário ADMIN, a empresa (se você passar o CNPJ) e as BUs dos relatórios
+("Agência" e "Cursos do Giovanni", provisórias; `UNIDADES="A,B"` troca a
+lista). Pode rodar de novo quantas vezes quiser: com o mesmo e-mail, troca a
+senha.
 
-```bash
- NOME="Seu Nome" EMAIL="voce@sampsdigital.com" SENHA='sua-senha-longa' PAPEL=ADMIN npm run db:usuario
+No PowerShell:
+
+```powershell
+$env:NOME="Seu Nome"; $env:EMAIL="voce@sampsdigital.com"; $env:SENHA="senha-com-12-ou-mais"
+$env:EMPRESA_NOME="Samps Digital"; $env:EMPRESA_CNPJ="00.000.000/0001-00"
+npm run db:seed:producao
 ```
 
-O espaço antes do `NOME` é de propósito: na maioria dos shells ele mantém a
-linha fora do histórico. Papéis: `ADMIN`, `FINANCEIRO`, `RH`, `LEITURA`. O
-comando pode ser repetido — rodar de novo com o mesmo e-mail troca a senha e
-o papel daquela pessoa, que é como você reseta uma senha sem mexer no banco.
+No bash (o espaço antes do `NOME` mantém a linha fora do histórico):
+
+```bash
+ NOME="Seu Nome" EMAIL="voce@sampsdigital.com" SENHA='senha-com-12-ou-mais' \
+ EMPRESA_NOME="Samps Digital" EMPRESA_CNPJ="00.000.000/0001-00" npm run db:seed:producao
+```
+
+Depois entre em `/financeiro/login` com esse e-mail e senha e, em Cadastros,
+crie a conta bancária com o saldo inicial.
+
+Para criar as outras pessoas (ou resetar a senha de alguém), use
+`npm run db:usuario` com `NOME`, `EMAIL`, `SENHA` e `PAPEL` (`ADMIN`,
+`FINANCEIRO`, `RH`, `LEITURA`).
+
+**O `npm run db:seed` é o de teste:** apaga as tabelas e cria contas com senha
+conhecida (`admin@sampsdigital.com / financeiro123`). Ele se recusa a rodar
+num banco do Supabase, a não ser com `SEED_DE_TESTE=sim`.
 
 ### A raiz do domínio da Vercel
 

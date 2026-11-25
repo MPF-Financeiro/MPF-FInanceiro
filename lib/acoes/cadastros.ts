@@ -8,7 +8,7 @@ import { exigir, PAPEIS_ADMIN, PAPEIS_FINANCEIRO } from "@/lib/permissoes";
 import { exigirMesAberto } from "@/lib/fechamento";
 import { inicioDoMes, somarMeses } from "@/lib/mes";
 import { dividirRepasses } from "@/lib/money";
-import { dataObrigatoria, dataOpcional, dinheiroPositivo, textoOpcional } from "@/lib/validacao";
+import { dataObrigatoria, dataOpcional, dinheiro, dinheiroPositivo, textoOpcional } from "@/lib/validacao";
 import { aviso, ehRedirect, falha, type Estado } from "@/lib/acoes/comum";
 
 const opcional = (v: FormDataEntryValue | null) => {
@@ -471,6 +471,63 @@ export async function cancelarVoucher(_estado: Estado, dados: FormData): Promise
     revalidatePath("/vouchers");
     revalidatePath("/receber");
     return { erro: null, ok: "Voucher cancelado, com o motivo registrado." };
+  } catch (e) {
+    if (ehRedirect(e)) throw e;
+    return falha(e);
+  }
+}
+
+/**
+ * O saldo do banco num dia: é de onde o fluxo de caixa parte. As baixas
+ * anteriores a esse dia já estão dentro dele e não são somadas de novo.
+ */
+export async function salvarSaldoInicial(_estado: Estado, dados: FormData): Promise<Estado> {
+  try {
+    await exigir(PAPEIS_ADMIN);
+    const d = z
+      .object({
+        contaId: z.string().min(1, "Escolha a conta"),
+        saldo: dinheiro,
+        em: dataObrigatoria,
+      })
+      .parse({
+        contaId: dados.get("contaId"),
+        saldo: String(dados.get("saldo") ?? ""),
+        em: dados.get("em"),
+      });
+    await db.contaBancaria.update({
+      where: { id: d.contaId },
+      data: { saldoInicial: d.saldo, saldoInicialEm: d.em },
+    });
+    revalidatePath("/cadastros");
+    revalidatePath("/relatorios", "layout");
+    revalidatePath("/");
+    return { erro: null, ok: "Saldo inicial salvo. O fluxo de caixa já parte dele." };
+  } catch (e) {
+    if (ehRedirect(e)) throw e;
+    return falha(e);
+  }
+}
+
+export async function salvarUnidade(_estado: Estado, dados: FormData): Promise<Estado> {
+  try {
+    await exigir(PAPEIS_ADMIN);
+    const d = z
+      .object({
+        id: z.string().optional(),
+        nome: z.string().trim().min(2, "Dê um nome à unidade").max(60),
+        ativa: z.boolean(),
+      })
+      .parse({ id: opcional(dados.get("id")), nome: dados.get("nome"), ativa: ativo(dados.get("ativa")) });
+    const repetida = await db.unidadeNegocio.findFirst({
+      where: { nome: { equals: d.nome, mode: "insensitive" }, ...(d.id ? { NOT: { id: d.id } } : {}) },
+    });
+    if (repetida) aviso("Já existe uma unidade com esse nome.");
+    if (d.id) await db.unidadeNegocio.update({ where: { id: d.id }, data: { nome: d.nome, ativa: d.ativa } });
+    else await db.unidadeNegocio.create({ data: { nome: d.nome, ativa: d.ativa } });
+    revalidatePath("/cadastros");
+    revalidatePath("/relatorios", "layout");
+    return { erro: null, ok: "Unidade de negócio salva." };
   } catch (e) {
     if (ehRedirect(e)) throw e;
     return falha(e);

@@ -36,7 +36,7 @@ export function Th({
     <th
       scope="col"
       className={cn(
-        "whitespace-nowrap border-b border-border pb-2 pe-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground",
+        "rotulo whitespace-nowrap border-b border-foreground/80 pb-2 pe-4",
         numero ? "text-end" : "text-start",
         className
       )}
@@ -58,8 +58,8 @@ export function Td({
   return (
     <td
       className={cn(
-        "whitespace-nowrap border-b border-border/60 py-3 pe-4 align-middle",
-        numero && "num text-end tabular-nums",
+        "whitespace-nowrap border-b border-[hsl(var(--rule-soft))] py-[11px] pe-4 align-middle",
+        numero && "num text-end text-[13px]",
         className
       )}
     >

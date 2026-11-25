@@ -6,6 +6,8 @@ import { hojeUTC, paraInputDate } from "@/lib/mes";
 import { competenciaFechada } from "@/lib/fechamento";
 import { Cabecalho } from "@/components/financeiro/pagina";
 import { DetalheTitulo } from "@/components/financeiro/detalhe-titulo";
+import { ClassificacaoDoTitulo } from "@/components/financeiro/classificacao-titulo";
+import { classificar } from "@/lib/classificacao";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +45,23 @@ export default async function TituloPagarPage({ params }: { params: { id: string
         hoje={paraInputDate(hojeUTC())}
         podeEscrever={podeLancar(sessao.papel) && !fechado}
       />
+      <div className="mt-6">
+        <ClassificacaoDoTitulo
+          id={titulo.id}
+          direcao={titulo.direcao}
+          escolhido={{
+            atividade: titulo.atividade,
+            natureza: titulo.natureza,
+            grupo: titulo.grupo,
+            unidadeId: titulo.unidadeId,
+            naoOperacional: titulo.naoOperacional,
+          }}
+          efetivo={classificar(titulo)}
+          nomeDaUnidade={opcoes.unidades.find((u) => u.id === titulo.unidadeId)?.nome ?? "Sem BU"}
+          unidades={opcoes.unidades}
+          podeEditar={podeLancar(sessao.papel)}
+        />
+      </div>
     </>
   );
 }

@@ -64,40 +64,46 @@ export function LoginView({ callbackUrl }: { callbackUrl?: string }) {
     <div className="grid min-h-dvh md:grid-cols-2">
       {/* Marca à ESQUERDA: o espelho do SampsOS, onde ela fica à direita. */}
       <aside
-        className="relative hidden overflow-hidden border-border bg-[hsl(var(--brand))] md:order-1 md:flex md:flex-col md:items-center md:justify-center md:border-e md:px-12"
+        className="relative hidden overflow-hidden bg-[hsl(var(--brand))] text-white md:order-1 md:flex md:flex-col md:justify-between md:px-12 md:py-12 lg:px-16"
         aria-hidden="true"
       >
-        <div className="pointer-events-none absolute -start-20 top-16 size-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -end-16 bottom-12 size-80 rounded-full bg-white/[.07] blur-3xl" />
-        <div className="relative z-10 flex max-w-sm flex-col items-center text-center text-white">
-          <svg viewBox="0 0 64 64" className="size-16" role="img" aria-label="">
-            <rect width="64" height="64" rx="15" fill="white" fillOpacity=".12" />
-            <path
-              d="M13 20c5.8-2.6 11.6-2.6 17.4 0v25.6c-5.8-2.6-11.6-2.6-17.4 0V20ZM34.6 20c5.8-2.6 11.6-2.6 17.4 0v25.6c-5.8-2.6-11.6-2.6-17.4 0V20Z"
-              fill="none"
-              stroke="white"
-              strokeWidth="2.4"
-              strokeLinejoin="round"
-            />
-            <path d="M32.5 21.4v25.2" stroke="white" strokeWidth="2.4" strokeLinecap="round" />
-          </svg>
-          <p className="mt-8 text-balance font-display text-2xl font-semibold">
-            Financeiro e RH
+        {/* Pauta de livro-caixa, em tinta clara sobre a capa azul. */}
+        <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(to_bottom,transparent_0_31px,rgba(255,255,255,.07)_31px_32px)]" />
+        <div className="pointer-events-none absolute inset-y-0 start-[88px] w-px bg-white/15 lg:start-[104px]" />
+
+        <FinanceiroLogo claro className="relative" />
+
+        <div className="relative max-w-md">
+          <p className="text-balance text-[30px] font-semibold leading-[1.15] tracking-[-0.02em]">
+            Cada número com a conta aberta atrás dele.
           </p>
-          <p className="mt-3 text-pretty text-sm leading-relaxed text-white/70">
-            Contas a receber e a pagar, vendas do site, folha, benefícios e
-            conciliação. Cada número com a conta aberta atrás dele.
-          </p>
+          <div className="mt-10 rounded-[4px] bg-white/[.06] p-5 ring-1 ring-white/15">
+            <div className="flex items-baseline justify-between text-[11px] uppercase tracking-[0.12em] text-white/60">
+              <span>Outubro</span>
+              <span className="rotate-[-3deg] rounded-[3px] border-2 border-white/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-white/90">
+                Mês fechado
+              </span>
+            </div>
+            <dl className="mt-4 space-y-2 font-mono text-[13px]">
+              <div className="flex justify-between"><dt className="text-white/70">Entrou</dt><dd>32.040,00</dd></div>
+              <div className="flex justify-between"><dt className="text-white/70">Saiu</dt><dd>− 32.780,10</dd></div>
+              <div className="flex justify-between border-t border-white/40 pt-2 font-semibold"><dt>Sobra</dt><dd>− 740,10</dd></div>
+            </dl>
+          </div>
         </div>
+
+        <p className="relative text-xs text-white/55">
+          A receber, a pagar, vendas do site, folha e conciliação.
+        </p>
       </aside>
 
       {/* Formulário à DIREITA. */}
       <main className="flex flex-col justify-center bg-background px-6 pb-16 pt-20 md:order-2 md:px-12 lg:px-16">
         <div className="mx-auto w-full max-w-sm">
-          <FinanceiroLogo />
+          <FinanceiroLogo className="md:hidden" />
 
-          <div className="mt-8">
-            <h1 className="text-balance font-display text-2xl font-semibold tracking-tight">
+          <div className="mt-8 border-b-2 border-foreground pb-4 md:mt-0">
+            <h1 className="text-balance text-[28px] font-semibold tracking-[-0.02em]">
               Entrar
             </h1>
             <p className="mt-2 text-pretty text-sm text-muted-foreground">
@@ -117,7 +123,7 @@ export function LoginView({ callbackUrl }: { callbackUrl?: string }) {
               <p
                 id="login-erro"
                 role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                className="rounded-[4px] border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
               >
                 {erro}
               </p>

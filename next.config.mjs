@@ -1,15 +1,17 @@
 /** @type {import('next').NextConfig} */
 
-// App do Financeiro. Vive sob /financeiro para que o SampsOS possa servi-lo
-// no mesmo domínio por multi-zones (rewrite), sem compartilhar processo,
-// banco ou deploy: uma falha aqui não derruba o SampsOS.
+// App do Financeiro, à parte do SampsOS: repositório, banco e deploy
+// próprios. Vive sob /financeiro (basePath) desde quando seria servido no
+// domínio do SampsOS; a raiz do domínio redireciona para o login.
+
+// O `next dev` avalia código com eval para o recarregamento ao vivo. Sem
+// 'unsafe-eval' a tela não hidrata e o botão de entrar fica travado. Só em
+// desenvolvimento: em produção a política continua sem eval.
+const emDesenvolvimento = process.env.NODE_ENV !== "production";
+
 const cspEnforce = [
   "default-src 'self'",
-  // Em dev o webpack do Next usa eval() nos chunks; sem 'unsafe-eval' o React
-  // não hidrata e nada no cliente funciona. Produção continua sem eval.
-  process.env.NODE_ENV === "development"
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${emDesenvolvimento ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",

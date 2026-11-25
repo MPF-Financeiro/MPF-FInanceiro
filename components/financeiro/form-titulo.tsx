@@ -9,6 +9,7 @@ import { ESTADO_VAZIO } from "@/lib/acoes/comum";
 import { dividirRepasses, formatBRL } from "@/lib/money";
 import { parseCentavos } from "@/lib/validacao";
 import { CATEGORIA, FORMA } from "@/lib/rotulos";
+import { ATIVIDADE, ATIVIDADES, GRUPO, GRUPOS, NATUREZA } from "@/lib/classificacao";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ export function FormTitulo({
   fornecedores,
   contratos,
   colaboradores,
+  unidades,
   hoje,
   competencia,
 }: {
@@ -44,6 +46,7 @@ export function FormTitulo({
   fornecedores: OpcaoSimples[];
   contratos: OpcaoContrato[];
   colaboradores: OpcaoSimples[];
+  unidades: OpcaoSimples[];
   hoje: string;
   competencia: string;
 }) {
@@ -246,6 +249,80 @@ export function FormTitulo({
           <Campo rotulo="Observações" htmlFor="observacoes" opcional>
             <Textarea id="observacoes" name="observacoes" maxLength={2000} />
           </Campo>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Classificação para os relatórios</CardTitle>
+          <span className="text-xs text-muted-foreground">
+            em branco, o sistema usa a regra da categoria
+          </span>
+        </CardHeader>
+        <CardBody className="space-y-4">
+          <Grade colunas={3}>
+            <Campo
+              rotulo="Atividade de caixa"
+              htmlFor="atividade"
+              opcional
+              dica="Empréstimo e acerto com sócio são financiamento; compra de equipamento é investimento."
+            >
+              <Select id="atividade" name="atividade" defaultValue="">
+                <option value="">Pela categoria</option>
+                {ATIVIDADES.map((a) => (
+                  <option key={a} value={a}>
+                    {ATIVIDADE[a]}
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+            <Campo
+              rotulo="Unidade de negócio"
+              htmlFor="unidadeId"
+              opcional
+              dica={direcao === "RECEBER" ? "De qual BU é esta venda." : "Só para gasto variável de uma BU."}
+            >
+              <Select id="unidadeId" name="unidadeId" defaultValue="">
+                <option value="">Sem BU</option>
+                {unidades.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nome}
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+            {direcao === "PAGAR" ? (
+              <Campo rotulo="Fixo ou variável" htmlFor="natureza" opcional dica="Variável acompanha a venda: freela de projeto, imposto sobre nota.">
+                <Select id="natureza" name="natureza" defaultValue="">
+                  <option value="">Pela categoria</option>
+                  {(Object.keys(NATUREZA) as Array<keyof typeof NATUREZA>).map((n) => (
+                    <option key={n} value={n}>
+                      {NATUREZA[n]}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+            ) : (
+              <Campo rotulo="Receita da operação?" htmlFor="naoOperacional" opcional>
+                <Select id="naoOperacional" name="naoOperacional" defaultValue="">
+                  <option value="">Sim, é venda</option>
+                  <option value="sim">Não: rendimento, venda de bem</option>
+                </Select>
+              </Campo>
+            )}
+          </Grade>
+          {direcao === "PAGAR" ? (
+            <Campo rotulo="Grupo do gasto fixo" htmlFor="grupo" opcional dica="Custo de pessoal vai sempre para Pessoal.">
+              <Select id="grupo" name="grupo" defaultValue="">
+                <option value="">Pela categoria</option>
+                {GRUPOS.map((g) => (
+                  <option key={g} value={g}>
+                    {GRUPO[g]}
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+          ) : null}
         </CardBody>
       </Card>
 

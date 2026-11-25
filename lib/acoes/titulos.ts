@@ -3,7 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { Categoria, Direcao, FormaPagamento, Origem, Prisma } from "@prisma/client";
+import {
+  AtividadeCaixa,
+  Categoria,
+  Direcao,
+  FormaPagamento,
+  GrupoGasto,
+  NaturezaGasto,
+  Origem,
+  Prisma,
+} from "@prisma/client";
 import { db } from "@/lib/db";
 import { exigir, PAPEIS_FINANCEIRO } from "@/lib/permissoes";
 import { exigirMesAberto } from "@/lib/fechamento";
@@ -38,6 +47,11 @@ const esquemaTitulo = z.object({
   contratoId: z.string().optional(),
   colaboradorId: z.string().optional(),
   observacoes: textoOpcional,
+  atividade: z.nativeEnum(AtividadeCaixa).optional(),
+  natureza: z.nativeEnum(NaturezaGasto).optional(),
+  grupo: z.nativeEnum(GrupoGasto).optional(),
+  unidadeId: z.string().optional(),
+  naoOperacional: z.boolean(),
 });
 
 /**
@@ -63,6 +77,11 @@ export async function lancarTitulo(_estado: Estado, dados: FormData): Promise<Es
       contratoId: vazioParaNulo(dados.get("contratoId")),
       colaboradorId: vazioParaNulo(dados.get("colaboradorId")),
       observacoes: String(dados.get("observacoes") ?? ""),
+      atividade: vazioParaNulo(dados.get("atividade")),
+      natureza: vazioParaNulo(dados.get("natureza")),
+      grupo: vazioParaNulo(dados.get("grupo")),
+      unidadeId: vazioParaNulo(dados.get("unidadeId")),
+      naoOperacional: dados.get("naoOperacional") === "sim",
     });
 
     await exigirMesAberto(d.competencia);
@@ -89,6 +108,11 @@ export async function lancarTitulo(_estado: Estado, dados: FormData): Promise<Es
           contratoId: d.contratoId ?? null,
           colaboradorId: d.colaboradorId ?? null,
           observacoes: d.observacoes,
+          atividade: d.atividade ?? null,
+          natureza: d.direcao === Direcao.PAGAR ? (d.natureza ?? null) : null,
+          grupo: d.direcao === Direcao.PAGAR ? (d.grupo ?? null) : null,
+          unidadeId: d.unidadeId ?? null,
+          naoOperacional: d.direcao === Direcao.RECEBER && d.naoOperacional,
           origem: Origem.MANUAL,
           criadoPorId: sessao.id,
         })),
@@ -343,6 +367,60 @@ export async function atualizarTitulo(_estado: Estado, dados: FormData): Promise
     revalidatePath(destino);
     revalidatePath(`${destino}/${titulo.id}`);
     return { erro: null, ok: "Título atualizado." };
+  } catch (e) {
+    if (ehRedirect(e)) throw e;
+    return falha(e);
+  }
+}
+
+/**
+ * Reclassificar para os relatórios: atividade, fixo/variável, grupo e BU.
+ * Não mexe em valor nem em data, por isso vale também em mês fechado: é o
+ * que permite à diretoria classificar o histórico depois.
+ */
+export async function classificarTitulo(_estado: Estado, dados: FormData): Promise<Estado> {
+  try {
+    await exigir(PAPEIS_FINANCEIRO);
+    const d = z
+      .object({
+        id: z.string().min(1),
+        atividade: z.nativeEnum(AtividadeCaixa).optional(),
+        natureza: z.nativeEnum(NaturezaGasto).optional(),
+        grupo: z.nativeEnum(GrupoGasto).optional(),
+        unidadeId: z.string().optional(),
+        naoOperacional: z.boolean(),
+      })
+      .parse({
+        id: dados.get("id"),
+        atividade: vazioParaNulo(dados.get("atividade")),
+        natureza: vazioParaNulo(dados.get("natureza")),
+        grupo: vazioParaNulo(dados.get("grupo")),
+        unidadeId: vazioParaNulo(dados.get("unidadeId")),
+        naoOperacional: dados.get("naoOperacional") === "sim",
+      });
+
+    const titulo = await db.titulo.findUnique({ where: { id: d.id } });
+    if (!titulo) aviso("Título não encontrado.");
+    if (d.unidadeId && !(await db.unidadeNegocio.findUnique({ where: { id: d.unidadeId } }))) {
+      aviso("Unidade de negócio não encontrada.");
+    }
+    const pagar = titulo.direcao === Direcao.PAGAR;
+    await db.titulo.update({
+      where: { id: titulo.id },
+      data: {
+        atividade: d.atividade ?? null,
+        natureza: pagar ? (d.natureza ?? null) : null,
+        grupo: pagar ? (d.grupo ?? null) : null,
+        unidadeId: d.unidadeId ?? null,
+        naoOperacional: !pagar && d.naoOperacional,
+      },
+    });
+
+    const destino = pagar ? "/pagar" : "/receber";
+    revalidatePath(`${destino}/${titulo.id}`);
+    revalidatePath("/relatorios", "layout");
+    revalidatePath("/");
+    return { erro: null, ok: "Classificação salva. Os relatórios já usam a nova." };
   } catch (e) {
     if (ehRedirect(e)) throw e;
     return falha(e);

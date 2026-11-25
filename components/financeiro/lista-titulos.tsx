@@ -106,7 +106,7 @@ export function ListaTitulos({
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
         <Numero rotulo="Total lançado" valor={total} nota={`${vivos.length} títulos`} />
         <Numero
           rotulo={receber ? "Já recebido" : "Já pago"}

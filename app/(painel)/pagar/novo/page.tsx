@@ -31,6 +31,7 @@ export default async function NovoPagarPage() {
         fornecedores={opcoes.fornecedores}
         contratos={opcoes.contratos}
         colaboradores={opcoes.colaboradores}
+        unidades={opcoes.unidades}
         hoje={paraInputDate(hoje)}
         competencia={paraInputMonth(hoje)}
       />

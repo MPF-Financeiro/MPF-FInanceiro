@@ -9,6 +9,8 @@ import {
   salvarContrato,
   salvarEmpresa,
   salvarFornecedor,
+  salvarSaldoInicial,
+  salvarUnidade,
 } from "@/lib/acoes/cadastros";
 import { ESTADO_VAZIO } from "@/lib/acoes/comum";
 import { formatBRL } from "@/lib/money";
@@ -427,10 +429,13 @@ export function EmpresasEContas({
     numero: string | null;
     empresa: string;
     ativa: boolean;
+    saldoInicial: number;
+    saldoInicialEm: Date | null;
   }>;
   podeAdministrar: boolean;
 }) {
   const [estadoEmpresa, acaoEmpresa] = useFormState(salvarEmpresa, ESTADO_VAZIO);
+  const [estadoSaldo, acaoSaldo] = useFormState(salvarSaldoInicial, ESTADO_VAZIO);
   const [estadoConta, acaoConta] = useFormState(salvarConta, ESTADO_VAZIO);
 
   return (
@@ -464,6 +469,7 @@ export function EmpresasEContas({
             <Th>Banco</Th>
             <Th>Agência e número</Th>
             <Th>Empresa</Th>
+            <Th numero>Saldo inicial</Th>
             <Th>Situação</Th>
           </tr>
         </thead>
@@ -476,6 +482,16 @@ export function EmpresasEContas({
                 {[c.agencia, c.numero].filter(Boolean).join(" / ") || "—"}
               </Td>
               <Td className="text-muted-foreground">{c.empresa}</Td>
+              <Td numero>
+                {c.saldoInicialEm ? (
+                  <>
+                    {formatBRL(c.saldoInicial)}
+                    <span className="ms-1.5 text-xs text-muted-foreground">em {data(c.saldoInicialEm)}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">não informado</span>
+                )}
+              </Td>
               <Td className="text-muted-foreground">{c.ativa ? "Ativa" : "Inativa"}</Td>
             </tr>
           ))}
@@ -533,12 +549,95 @@ export function EmpresasEContas({
             <Caixinha nome="ativa" marcado rotulo="Ativa" />
             <BotaoEnviar enviando="Salvando…">Cadastrar conta</BotaoEnviar>
           </form>
+
+          {contas.length > 0 ? (
+            <form action={acaoSaldo} className="space-y-4 lg:col-span-2 lg:border-t lg:border-border lg:pt-5">
+              <div>
+                <p className="text-sm font-semibold">Saldo inicial de uma conta</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  O saldo do extrato num dia. O fluxo de caixa parte dele, e o que foi baixado antes desse dia já está dentro.
+                </p>
+              </div>
+              <Erro>{estadoSaldo.erro}</Erro>
+              <Sucesso>{estadoSaldo.ok}</Sucesso>
+              <Grade colunas={3}>
+                <Campo rotulo="Conta" htmlFor="saldo-conta">
+                  <Select id="saldo-conta" name="contaId" required>
+                    {contas.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.apelido} ({c.banco})
+                      </option>
+                    ))}
+                  </Select>
+                </Campo>
+                <Campo rotulo="Saldo" htmlFor="saldo-valor" dica="Negativo com sinal de menos.">
+                  <Input id="saldo-valor" name="saldo" required inputMode="decimal" placeholder="0,00" className="num" />
+                </Campo>
+                <Campo rotulo="No começo do dia" htmlFor="saldo-em">
+                  <Input id="saldo-em" name="em" type="date" required />
+                </Campo>
+              </Grade>
+              <BotaoEnviar enviando="Salvando…">Salvar saldo inicial</BotaoEnviar>
+            </form>
+          ) : null}
         </div>
       ) : (
         <p className="border-t border-border pt-5 text-sm text-muted-foreground">
           Só o administrador cadastra empresa e conta bancária.
         </p>
       )}
+    </Caixa>
+  );
+}
+
+export function Unidades({
+  unidades,
+  podeAdministrar,
+}: {
+  unidades: Array<{ id: string; nome: string; ativa: boolean; titulos: number }>;
+  podeAdministrar: boolean;
+}) {
+  const [estado, acao] = useFormState(salvarUnidade, ESTADO_VAZIO);
+  return (
+    <Caixa
+      titulo="Unidades de negócio"
+      descricao="As BUs da margem de contribuição. Cada venda e cada gasto variável pode ser de uma BU; o que não tem BU aparece separado no relatório."
+    >
+      <Tabela minWidth={420}>
+        <thead>
+          <tr>
+            <Th>Unidade</Th>
+            <Th numero>Lançamentos</Th>
+            <Th>Situação</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {unidades.map((u) => (
+            <tr key={u.id}>
+              <Td className="font-medium">{u.nome}</Td>
+              <Td numero>{u.titulos}</Td>
+              <Td className="text-muted-foreground">{u.ativa ? "Ativa" : "Inativa"}</Td>
+            </tr>
+          ))}
+          {unidades.length === 0 ? (
+            <tr>
+              <Td className="text-muted-foreground">Nenhuma unidade cadastrada.</Td>
+            </tr>
+          ) : null}
+        </tbody>
+      </Tabela>
+      {podeAdministrar ? (
+        <form action={acao} className="max-w-md space-y-4 border-t border-border pt-5">
+          <p className="text-sm font-semibold">Nova unidade</p>
+          <Erro>{estado.erro}</Erro>
+          <Sucesso>{estado.ok}</Sucesso>
+          <Campo rotulo="Nome" htmlFor="bu-nome" dica="Ex.: Agência, Cursos do Giovanni.">
+            <Input id="bu-nome" name="nome" required />
+          </Campo>
+          <Caixinha nome="ativa" marcado rotulo="Ativa" />
+          <BotaoEnviar enviando="Salvando…">Cadastrar unidade</BotaoEnviar>
+        </form>
+      ) : null}
     </Caixa>
   );
 }
