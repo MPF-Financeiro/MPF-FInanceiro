@@ -36,6 +36,18 @@ const MES = hoje.getUTCMonth() + 1;
 const competencia = d(ANO, MES, 1);
 
 async function main() {
+  // Este seed APAGA tudo e cria senha conhecida. Em banco do Supabase só roda
+  // com SEED_DE_TESTE=sim, para ninguém rodar em produção por engano: o de
+  // produção é `npm run db:seed:producao`.
+  const url = process.env.DATABASE_URL ?? "";
+  if (/supabase\.(co|com)/.test(url) && process.env.SEED_DE_TESTE !== "sim") {
+    console.error(
+      "Recusado: este é o seed de TESTE (apaga tudo) e o banco é do Supabase.\n" +
+        "Para produção, use `npm run db:seed:producao`."
+    );
+    process.exit(1);
+  }
+
   await db.$transaction([
     db.movimentoExtrato.deleteMany(),
     db.fechamentoMensal.deleteMany(),
