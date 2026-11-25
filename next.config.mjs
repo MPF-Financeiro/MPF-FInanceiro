@@ -5,7 +5,11 @@
 // banco ou deploy: uma falha aqui não derruba o SampsOS.
 const cspEnforce = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // Em dev o webpack do Next usa eval() nos chunks; sem 'unsafe-eval' o React
+  // não hidrata e nada no cliente funciona. Produção continua sem eval.
+  process.env.NODE_ENV === "development"
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
