@@ -19,7 +19,15 @@ export const authConfig = {
       const pathname = request.nextUrl.pathname.replace(/^\/financeiro/, "") || "/";
       const isLogin = pathname === "/login";
 
-      if (!user) return isLogin;
+      if (!user) {
+        if (isLogin) return true;
+        // O redirect padrão do next-auth clona o nextUrl, que já carrega o
+        // basePath, e soma o pages.signIn por cima: dá /financeiro/financeiro/login
+        // (404). Montado aqui, a partir da origem, o caminho sai certo.
+        const login = new URL("/financeiro/login", request.nextUrl.origin);
+        login.searchParams.set("callbackUrl", request.nextUrl.href);
+        return Response.redirect(login);
+      }
       if (isLogin) return Response.redirect(new URL("/financeiro", request.nextUrl));
       return true;
     },
