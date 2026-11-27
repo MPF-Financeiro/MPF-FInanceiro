@@ -50,7 +50,8 @@ const telas = [
   await rh.goto(`${BASE}/relatorios/resultado`, { waitUntil: 'domcontentloaded' });
   checa(/financeiro\/?$/.test(rh.url()), 'o RH é devolvido dos relatórios');
   const menuRh = await rh.locator('nav[aria-label="Seções"] a').allTextContents();
-  checa(!menuRh.includes('Fluxo de caixa'), 'o RH não vê os relatórios no menu');
+  const navRh = await rh.locator('nav[aria-label="Seções"]').innerText();
+  checa(menuRh.length > 0 && !menuRh.includes('Fluxo de caixa') && !navRh.includes('Relatórios'), 'o RH não vê os relatórios no menu');
 
   await b.close();
   console.log(`PASSOU (${ok.length}):`); ok.forEach((m) => console.log('  ok ', m));

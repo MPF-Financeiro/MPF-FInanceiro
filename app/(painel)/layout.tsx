@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/lib/auth";
 import { FinanceiroLogo } from "@/components/brand/financeiro-logo";
-import { MenuCelular, MenuLateral, type GrupoMenu } from "@/components/financeiro/menu";
+import { AtalhoBusca, MenuCelular, MenuLateral, type GrupoMenu } from "@/components/financeiro/menu";
 import { podeLancar, podeRH, podeVerRelatorios, sessaoAtual } from "@/lib/permissoes";
 import { ROTULO_PAPEL } from "@/lib/permissoes";
 
@@ -13,48 +13,44 @@ export default async function PainelLayout({ children }: { children: React.React
 
   // O menu mostra só o que o papel pode abrir: menos chance de clicar e
   // tomar um "sem permissão" na cara.
+  const relatorios = quem && podeVerRelatorios(quem.papel);
   const grupos: GrupoMenu[] = [
-    { titulo: "Visão", itens: [{ href: "/", rotulo: "Visão executiva" }] },
-    ...(quem && podeVerRelatorios(quem.papel)
-      ? [
-          {
-            titulo: "Relatórios",
-            itens: [
-              { href: "/relatorios/fluxo-de-caixa", rotulo: "Fluxo de caixa" },
-              { href: "/relatorios/gastos-fixos", rotulo: "Gastos fixos" },
-              { href: "/relatorios/margem", rotulo: "Margem por BU" },
-              { href: "/relatorios/resumo", rotulo: "Resumo da operação" },
-              { href: "/relatorios/resultado", rotulo: "Resultado operacional" },
-              { href: "/relatorios/demonstracoes", rotulo: "Demonstrações" },
-            ],
-          },
-        ]
-      : []),
     {
-      titulo: "Movimento",
       itens: [
-        { href: "/receber", rotulo: "A receber" },
-        { href: "/pagar", rotulo: "A pagar" },
-        ...(lanca ? [{ href: "/banco", rotulo: "Banco e conciliação" }] : []),
+        { href: "/", rotulo: "Visão executiva", icone: "painel" },
+        { href: "/receber", rotulo: "A receber", icone: "receber" },
+        { href: "/pagar", rotulo: "A pagar", icone: "pagar" },
+        ...(lanca ? [{ href: "/banco", rotulo: "Banco e conciliação", icone: "banco" as const }] : []),
+        ...(relatorios
+          ? [
+              {
+                href: "/relatorios",
+                rotulo: "Relatórios",
+                icone: "relatorios" as const,
+                filhos: [
+                  { href: "/relatorios/fluxo-de-caixa", rotulo: "Fluxo de caixa" },
+                  { href: "/relatorios/gastos-fixos", rotulo: "Gastos fixos" },
+                  { href: "/relatorios/margem", rotulo: "Margem por BU" },
+                  { href: "/relatorios/resumo", rotulo: "Resumo da operação" },
+                  { href: "/relatorios/resultado", rotulo: "Resultado operacional" },
+                  { href: "/relatorios/demonstracoes", rotulo: "Demonstrações" },
+                ],
+              },
+            ]
+          : []),
       ],
     },
     {
       titulo: "Site do Giovanni",
       itens: [
-        { href: "/vendas", rotulo: "Vendas do site" },
-        { href: "/vouchers", rotulo: "Vouchers" },
+        { href: "/vendas", rotulo: "Vendas do site", icone: "vendas" },
+        { href: "/vouchers", rotulo: "Vouchers", icone: "vouchers" },
       ],
     },
     ...(quem && podeRH(quem.papel)
-      ? [{ titulo: "Pessoas", itens: [{ href: "/rh", rotulo: "RH e folha" }] }]
+      ? [{ titulo: "Equipe", itens: [{ href: "/rh", rotulo: "RH e folha", icone: "pessoas" as const }] }]
       : []),
-    {
-      titulo: "Arquivo",
-      itens: [
-        ...(lanca ? [{ href: "/cadastros", rotulo: "Cadastros" }] : []),
-        { href: "/busca", rotulo: "Busca" },
-      ],
-    },
+    ...(lanca ? [{ titulo: "Configuração", itens: [{ href: "/cadastros", rotulo: "Cadastros", icone: "cadastros" as const }] }] : []),
   ];
 
   const sair = async () => {
@@ -70,17 +66,26 @@ export default async function PainelLayout({ children }: { children: React.React
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <div className="hidden border-e border-border bg-[hsl(var(--paper-deep))] lg:block">
       <aside className="sticky top-0 flex h-dvh flex-col">
-        <div className="border-b border-border px-6 py-5">
+        <div className="space-y-4 px-5 pb-2 pt-5">
           <FinanceiroLogo />
+          <AtalhoBusca />
         </div>
         <MenuLateral grupos={grupos} />
-        <div className="border-t border-border px-6 py-4">
-          <p className="truncate text-[13px] font-medium">{sessao.user.name}</p>
-          <p className="text-xs text-muted-foreground">{quem ? ROTULO_PAPEL[quem.papel] : ""}</p>
-          <form action={sair} className="mt-3">
+        <div className="flex items-center gap-3 border-t border-border px-5 py-3.5">
+          <span
+            aria-hidden
+            className="grid size-8 shrink-0 place-items-center rounded-full border border-border bg-card text-[12px] font-semibold text-brand"
+          >
+            {(sessao.user.name ?? "?").trim().charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-[13px] font-medium">{sessao.user.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{quem ? ROTULO_PAPEL[quem.papel] : ""}</p>
+          </div>
+          <form action={sair}>
             <button
               type="submit"
-              className="text-[13px] text-muted-foreground underline decoration-border underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-[4px] px-2 py-1 text-[13px] text-muted-foreground hover:bg-card/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Sair
             </button>
